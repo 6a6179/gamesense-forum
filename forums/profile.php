@@ -23,7 +23,9 @@ if ($id < 2)
 if($pun_user['group_id'] == 4 && $pun_user['id'] != $id){
 	message($lang_common['No permission']);
 }
-if ($action != 'change_pass' || !isset($_GET['key']))
+$is_password_reset_request = ($action == 'change_pass' && isset($_GET['key']) && isset($_GET['token']));
+
+if (!$is_password_reset_request)
 {
 	if ($pun_user['g_read_board'] == '0')
 		message($lang_common['No view'], false, '403 Forbidden');
@@ -40,7 +42,11 @@ require PUN_ROOT.'lang/'.$pun_user['language'].'/profile.php';
 
 if ($action == 'change_pass')
 {
-	if (isset($_GET['key']))
+	$is_password_reset = isset($_GET['key']) && isset($_GET['token']);
+	$reset_key = $is_password_reset ? pun_trim($_GET['key']) : '';
+	$reset_token = $is_password_reset ? pun_trim($_GET['token']) : '';
+
+	if ($is_password_reset)
 	{
 		// If the user is already logged in we shouldn't be here :)
 		if (!$pun_user['is_guest'])
@@ -49,23 +55,17 @@ if ($action == 'change_pass')
 			exit;
 		}
 
-		$key = $_GET['key'];
-
 		$result = $db->query('SELECT * FROM '.$db->prefix.'users WHERE id='.$id) or error('Unable to fetch new password', __FILE__, __LINE__, $db->error());
 		$cur_user = $db->fetch_assoc($result);
 
-		if ($key == '' || $key != $cur_user['activate_key'])
-			message($lang_profile['Pass key bad'].' <a href="mailto:'.pun_htmlspecialchars($pun_config['o_admin_email']).'">'.pun_htmlspecialchars($pun_config['o_admin_email']).'</a>.');
-		else
-		{
-			$db->query('UPDATE '.$db->prefix.'users SET password=\''.$db->escape($cur_user['activate_string']).'\', activate_string=NULL, activate_key=NULL'.(!empty($cur_user['salt']) ? ', salt=NULL' : '').' WHERE id='.$id) or error('Unable to update password', __FILE__, __LINE__, $db->error());
+		$reset_expired = ($cur_user['last_email_sent'] == '' || (time() - $cur_user['last_email_sent']) < 0 || (time() - $cur_user['last_email_sent']) > 3600);
 
-			message($lang_profile['Pass updated'], true);
-		}
+		if ($reset_key == '' || $reset_token == '' || $reset_key != $cur_user['activate_key'] || empty($cur_user['activate_string']) || !forum_password_verify($reset_token, $cur_user['activate_string']) || $reset_expired)
+			message($lang_profile['Pass key bad'].' <a href="mailto:'.pun_htmlspecialchars($pun_config['o_admin_email']).'">'.pun_htmlspecialchars($pun_config['o_admin_email']).'</a>.');
 	}
 
 	// Make sure we are allowed to change this user's password
-	if ($pun_user['id'] != $id)
+	if (!$is_password_reset && $pun_user['id'] != $id)
 	{
 		if (!$pun_user['is_admmod']) // A regular user trying to change another user's password?
 			message($lang_common['No permission'], false, '403 Forbidden');
@@ -86,6 +86,7 @@ if ($action == 'change_pass')
 	{
 		// Make sure they got here from the site
 		confirm_referrer('profile.php');
+		check_csrf($_POST['csrf_token']);
 
 		$old_password = isset($_POST['req_old_password']) ? pun_trim($_POST['req_old_password']) : '';
 		$new_password1 = pun_trim($_POST['req_new_password1']);
@@ -101,30 +102,37 @@ if ($action == 'change_pass')
 
 		$authorized = false;
 
-		if (!empty($cur_user['password']))
+		if ($is_password_reset)
 		{
-			$old_password_hash = pun_hash($old_password);
+			$reset_expired = ($cur_user['last_email_sent'] == '' || (time() - $cur_user['last_email_sent']) < 0 || (time() - $cur_user['last_email_sent']) > 3600);
 
-			if ($cur_user['password'] == $old_password_hash || $pun_user['is_admmod'])
+			if ($reset_key != '' && $reset_token != '' && $reset_key == $cur_user['activate_key'] && !empty($cur_user['activate_string']) && forum_password_verify($reset_token, $cur_user['activate_string']) && !$reset_expired)
 				$authorized = true;
 		}
+		else if (!empty($cur_user['password']) && ($pun_user['is_admmod'] || forum_password_verify($old_password, $cur_user['password'], $cur_user['salt'])))
+			$authorized = true;
 
 		if (!$authorized)
 			message($lang_profile['Wrong pass']);
 
-		$new_password_hash = pun_hash($new_password1);
+		$new_password_hash = forum_password_hash($new_password1);
 
-		$db->query('UPDATE '.$db->prefix.'users SET password=\''.$new_password_hash.'\''.(!empty($cur_user['salt']) ? ', salt=NULL' : '').' WHERE id='.$id) or error('Unable to update password', __FILE__, __LINE__, $db->error());
+		$db->query('UPDATE '.$db->prefix.'users SET password=\''.$db->escape($new_password_hash).'\', activate_string=NULL, activate_key=NULL'.(!empty($cur_user['salt']) ? ', salt=NULL' : '').' WHERE id='.$id) or error('Unable to update password', __FILE__, __LINE__, $db->error());
 
-		if ($pun_user['id'] == $id)
+		if (!$pun_user['is_guest'] && $pun_user['id'] == $id)
 			pun_setcookie($pun_user['id'], $new_password_hash, time() + $pun_config['o_timeout_visit']);
+
+		if ($is_password_reset)
+			message($lang_profile['Pass updated'], true);
 
 		redirect('profile.php?section=essentials&amp;id='.$id, $lang_profile['Pass updated redirect']);
 	}
 
 	$page_title = array(pun_htmlspecialchars($pun_config['o_board_title']), $lang_common['Profile'], $lang_profile['Change pass']);
-	$required_fields = array('req_old_password' => $lang_profile['Old pass'], 'req_new_password1' => $lang_profile['New pass'], 'req_new_password2' => $lang_profile['Confirm new pass']);
-	$focus_element = array('change_pass', ((!$pun_user['is_admmod']) ? 'req_old_password' : 'req_new_password1'));
+	$required_fields = array('req_new_password1' => $lang_profile['New pass'], 'req_new_password2' => $lang_profile['Confirm new pass']);
+	if (!$is_password_reset && !$pun_user['is_admmod'])
+		$required_fields = array('req_old_password' => $lang_profile['Old pass']) + $required_fields;
+	$focus_element = array('change_pass', ((!$is_password_reset && !$pun_user['is_admmod']) ? 'req_old_password' : 'req_new_password1'));
 	define('PUN_ACTIVE_PAGE', 'profile');
 	require PUN_ROOT.'header.php';
 
@@ -132,13 +140,14 @@ if ($action == 'change_pass')
 <div class="blockform">
 	<h2><span><?php echo $lang_profile['Change pass'] ?></span></h2>
 	<div class="box">
-		<form id="change_pass" method="post" action="profile.php?action=change_pass&amp;id=<?php echo $id ?>" onsubmit="return process_form(this)">
+		<form id="change_pass" method="post" action="profile.php?action=change_pass&amp;id=<?php echo $id ?><?php if ($is_password_reset) echo '&amp;key='.urlencode($reset_key).'&amp;token='.urlencode($reset_token); ?>" onsubmit="return process_form(this)">
 			<div class="inform">
 				<input type="hidden" name="form_sent" value="1" />
+				<input type="hidden" name="csrf_token" value="<?php echo pun_csrf_token(); ?>" />
 				<fieldset>
 					<legend><?php echo $lang_profile['Change pass legend'] ?></legend>
 					<div class="infldset">
-<?php if (!$pun_user['is_admmod']): ?>						<label class="required"><strong><?php echo $lang_profile['Old pass'] ?> <span><?php echo $lang_common['Required'] ?></span></strong><br />
+<?php if (!$is_password_reset && !$pun_user['is_admmod']): ?>						<label class="required"><strong><?php echo $lang_profile['Old pass'] ?> <span><?php echo $lang_common['Required'] ?></span></strong><br />
 						<input type="password" name="req_old_password" size="16" /><br /></label>
 <?php endif; ?>						<label class="conl required"><strong><?php echo $lang_profile['New pass'] ?> <span><?php echo $lang_common['Required'] ?></span></strong><br />
 						<input type="password" name="req_new_password1" size="16" /><br /></label>
@@ -196,8 +205,19 @@ else if ($action == 'change_email')
 	}
 	else if (isset($_POST['form_sent']))
 	{
-		if (pun_hash($_POST['req_password']) !== $pun_user['password'])
+		check_csrf($_POST['csrf_token']);
+
+		if (!forum_password_verify($_POST['req_password'], $pun_user['password'], isset($pun_user['salt']) ? $pun_user['salt'] : null))
 			message($lang_profile['Wrong pass']);
+
+		if (!empty($pun_user['salt']) || forum_password_needs_rehash($pun_user['password']))
+		{
+			$new_password_hash = forum_password_hash($_POST['req_password']);
+			$db->query('UPDATE '.$db->prefix.'users SET password=\''.$db->escape($new_password_hash).'\', salt=NULL WHERE id='.$pun_user['id']) or error('Unable to update user password', __FILE__, __LINE__, $db->error());
+			$pun_user['password'] = $new_password_hash;
+			$pun_user['salt'] = null;
+			pun_setcookie($pun_user['id'], $new_password_hash, time() + $pun_config['o_timeout_visit']);
+		}
 			
 		// Make sure they got here from the site
 		confirm_referrer('profile.php');
@@ -300,6 +320,7 @@ else if ($action == 'change_email')
 					<legend><?php echo $lang_profile['Email legend'] ?></legend>
 					<div class="infldset">
 						<input type="hidden" name="form_sent" value="1" />
+						<input type="hidden" name="csrf_token" value="<?php echo pun_csrf_token(); ?>" />
 						<label class="required"><strong><?php echo $lang_profile['New email'] ?> <span><?php echo $lang_common['Required'] ?></span></strong><br /><input type="text" name="req_new_email" size="50" maxlength="80" /><br /></label>
 						<label class="required"><strong><?php echo $lang_common['Password'] ?> <span><?php echo $lang_common['Required'] ?></span></strong><br /><input type="password" name="req_password" size="16" /><br /></label>
 						<p><?php echo $lang_profile['Email instructions'] ?></p>
@@ -331,6 +352,7 @@ else if ($action == 'upload_avatar' || $action == 'upload_avatar2')
 			
 		// Make sure they got here from the site
 		confirm_referrer('profile.php');
+		check_csrf($_POST['csrf_token']);
 
 		$uploaded_file = $_FILES['req_file'];
 
@@ -429,6 +451,7 @@ else if ($action == 'upload_avatar' || $action == 'upload_avatar2')
 					<legend><?php echo $lang_profile['Upload avatar legend'] ?></legend>
 					<div class="infldset">
 						<input type="hidden" name="form_sent" value="1" />
+						<input type="hidden" name="csrf_token" value="<?php echo pun_csrf_token(); ?>" />
 						<input type="hidden" name="MAX_FILE_SIZE" value="<?php echo $pun_config['o_avatars_size'] ?>" />
 						<label class="required"><strong><?php echo $lang_profile['File'] ?> <span><?php echo $lang_common['Required'] ?></span></strong><br /><input name="req_file" type="file" size="40" /><br /></label>
 						<p><?php echo $lang_profile['Avatar desc'].' '.$pun_config['o_avatars_width'].' x '.$pun_config['o_avatars_height'].' '.$lang_profile['pixels'].' '.$lang_common['and'].' '.forum_number_format($pun_config['o_avatars_size']).' '.$lang_profile['bytes'].' ('.file_size($pun_config['o_avatars_size']).').' ?></p>
@@ -453,6 +476,7 @@ else if (isset($_POST['generate']))
 		message($lang_common['No permission']);
 	
 	confirm_referrer('profile.php');
+	check_csrf($_POST['csrf_token']);
 
 	//delete_avatar($id);
 $chars="qazxswedcvfrtgbnhyujmkiolp1234567890QAZXSWEDCVFRTGBNHYUJMKIOLP"; 
@@ -507,6 +531,7 @@ else if (isset($_POST['update_group_membership']))
 		message($lang_common['No permission'], false, '403 Forbidden');
 
 	confirm_referrer('profile.php');
+	check_csrf($_POST['csrf_token']);
 
 	$new_group_id = intval($_POST['group_id']);
 
@@ -557,6 +582,7 @@ else if (isset($_POST['update_forums']))
 		message($lang_common['No permission'], false, '403 Forbidden');
 
 	confirm_referrer('profile.php');
+	check_csrf($_POST['csrf_token']);
 
 	// Get the username of the user we are processing
 	$result = $db->query('SELECT username FROM '.$db->prefix.'users WHERE id='.$id) or error('Unable to fetch user info', __FILE__, __LINE__, $db->error());
@@ -597,6 +623,9 @@ else if (isset($_POST['ban']))
 	if ($pun_user['g_id'] != PUN_ADMIN && ($pun_user['g_moderator'] != '1' || $pun_user['g_mod_ban_users'] == '0'))
 		message($lang_common['No permission'], false, '403 Forbidden');
 
+	confirm_referrer('profile.php');
+	check_csrf($_POST['csrf_token']);
+
 	// Get the username of the user we are banning
 	$result = $db->query('SELECT username FROM '.$db->prefix.'users WHERE id='.$id) or error('Unable to fetch username', __FILE__, __LINE__, $db->error());
 	$username = $db->result($result);
@@ -620,6 +649,7 @@ else if ($action == 'promote')
 		message($lang_common['No permission'], false, '403 Forbidden');
 
 	confirm_referrer('viewtopic.php');
+	check_csrf($_GET['csrf_token']);
 
 	$pid = isset($_GET['pid']) ? intval($_GET['pid']) : 0;
 
@@ -642,6 +672,7 @@ else if (isset($_POST['delete_user']) || isset($_POST['delete_user_comply']))
 		message($lang_common['No permission'], false, '403 Forbidden');
 
 	confirm_referrer('profile.php');
+	check_csrf($_POST['csrf_token']);
 
 	// Get the username and group of the user we are deleting
 	$result = $db->query('SELECT group_id, username FROM '.$db->prefix.'users WHERE id='.$id) or error('Unable to fetch user info', __FILE__, __LINE__, $db->error());
@@ -741,8 +772,9 @@ else if (isset($_POST['delete_user']) || isset($_POST['delete_user_comply']))
 <div class="blockform">
 	<h2><span><?php echo $lang_profile['Confirm delete user'] ?></span></h2>
 	<div class="box">
-		<form id="confirm_del_user" method="post" action="profile.php?id=<?php echo $id ?>">
-			<div class="inform">
+			<form id="confirm_del_user" method="post" action="profile.php?id=<?php echo $id ?>">
+				<input type="hidden" name="csrf_token" value="<?php echo pun_csrf_token(); ?>" />
+				<div class="inform">
 				<fieldset>
 					<legend><?php echo $lang_profile['Confirm delete legend'] ?></legend>
 					<div class="infldset">
@@ -783,6 +815,7 @@ else if (isset($_POST['form_sent']))
 
 	// Make sure they got here from the site
 	confirm_referrer('profile.php');
+	check_csrf($_POST['csrf_token']);
 
 	$username_updated = false;
 
@@ -1794,6 +1827,7 @@ else
 						<legend><?php echo $lang_profile['Username and pass legend'] ?></legend>
 						<div class="infldset">
 							<input type="hidden" name="form_sent" value="1" />
+							<input type="hidden" name="csrf_token" value="<?php echo pun_csrf_token(); ?>" />
 							<?php echo $username_field ?>
 <?php if ($pun_user['id'] == $id || $pun_user['g_id'] == PUN_ADMIN || ($user['g_moderator'] == '0' && $pun_user['g_mod_change_passwords'] == '1')): ?>							<p class="actions"><span><a href="profile.php?action=change_pass&amp;id=<?php echo $id ?>"><?php echo $lang_profile['Change pass'] ?></a></span></p>
 <?php endif; ?>						</div>
@@ -1985,6 +2019,7 @@ else
 		<div class="box">
 		<form id="profile1" method="post" action="profile.php?section=2fa&amp;id=<?php echo $user['id'] ?>">
 				<input type="hidden" name="form_sent" value="1">
+				<input type="hidden" name="csrf_token" value="<?php echo pun_csrf_token(); ?>">
 
 			<div class="inform">
 				<fieldset>
@@ -2048,6 +2083,7 @@ else
 						<legend><?php echo $lang_profile['Personal details legend'] ?></legend>
 						<div class="infldset">
 							<input type="hidden" name="form_sent" value="1" />
+							<input type="hidden" name="csrf_token" value="<?php echo pun_csrf_token(); ?>" />
 							<label><?php echo $lang_profile['Realname'] ?><br /><input type="text" name="form[realname]" value="<?php echo pun_htmlspecialchars($user['realname']) ?>" size="40" maxlength="40" /><br /></label>
 <?php if (isset($title_field)): ?>							<?php echo $title_field ?>
 <?php endif; ?>							<label><?php echo $lang_profile['Location'] ?><br /><input type="text" name="form[location]" value="<?php echo pun_htmlspecialchars($user['location']) ?>" size="30" maxlength="30" /><br /></label>
@@ -2082,6 +2118,7 @@ else
 						<legend><?php echo $lang_profile['Contact details legend'] ?></legend>
 						<div class="infldset">
 							<input type="hidden" name="form_sent" value="1" />
+							<input type="hidden" name="csrf_token" value="<?php echo pun_csrf_token(); ?>" />
 							<label><?php echo $lang_profile['Jabber'] ?><br /><input id="jabber" type="text" name="form[jabber]" value="<?php echo pun_htmlspecialchars($user['jabber']) ?>" size="40" maxlength="75" /><br /></label>
 							<label><?php echo $lang_profile['ICQ'] ?><br /><input id="icq" type="text" name="form[icq]" value="<?php echo $user['icq'] ?>" size="12" maxlength="12" /><br /></label>
 							<label><?php echo $lang_profile['MSN'] ?><br /><input id="msn" type="text" name="form[msn]" value="<?php echo pun_htmlspecialchars($user['msn']) ?>" size="40" maxlength="50" /><br /></label>
@@ -2127,7 +2164,7 @@ else
 		<h2><span><?php echo pun_htmlspecialchars($user['username']).' - '.$lang_profile['Section personality'] ?></span></h2>
 		<div class="box">
 			<form id="profile4" method="post" action="profile.php?section=personality&amp;id=<?php echo $id ?>">
-				<div><input type="hidden" name="form_sent" value="1" /></div>
+				<div><input type="hidden" name="form_sent" value="1" /><input type="hidden" name="csrf_token" value="<?php echo pun_csrf_token(); ?>" /></div>
 <?php if ($pun_config['o_avatars'] == '1'): ?>				<div class="inform">
 					<fieldset id="profileavatar">
 						<legend><?php echo $lang_profile['Avatar legend'] ?></legend>
@@ -2202,6 +2239,7 @@ else
 		<div class="box">
 			<form id="profile8" method="post" action="profile.php?section=premium&amp;id=<?php echo $user['id'] ?>">
 				<input type="hidden" name="form_sent" value="1">
+				<input type="hidden" name="csrf_token" value="<?php echo pun_csrf_token(); ?>">
 					
 					<?php if ($user['group_id'] == 4){ ?>
 				<div id="infono" class="inform">
@@ -2283,7 +2321,7 @@ $resultdate = format_time($date->getTimestamp(), false, null, null, false, true)
                     $.ajax({
                         url: "profile.php?section=premium&amp;id="+<?php echo $user['id'] ?>,
                         type: "POST",
-                        data: { client: "Download" },
+                        data: { form_sent: "1", client: "Download", csrf_token: "<?php echo pun_csrf_token(); ?>" },
                         success: function(response){
                               //do action  
                         },
@@ -2347,7 +2385,7 @@ $resultdate = format_time($date->getTimestamp(), false, null, null, false, true)
 		<h2><span><?php echo pun_htmlspecialchars($user['username']).' - '.$lang_profile['Section display'] ?></span></h2>
 		<div class="box">
 			<form id="profile5" method="post" action="profile.php?section=display&amp;id=<?php echo $id ?>">
-				<div><input type="hidden" name="form_sent" value="1" /></div>
+				<div><input type="hidden" name="form_sent" value="1" /><input type="hidden" name="csrf_token" value="<?php echo pun_csrf_token(); ?>" /></div>
 
 <?php if ($pun_config['o_smilies'] == '1' || $pun_config['o_smilies_sig'] == '1' || $pun_config['o_signatures'] == '1' || $pun_config['o_avatars'] == '1' || ($pun_config['p_message_bbcode'] == '1' && $pun_config['p_message_img_tag'] == '1')): ?>
 				<div class="inform">
@@ -2402,6 +2440,7 @@ $resultdate = format_time($date->getTimestamp(), false, null, null, false, true)
 						<legend><?php echo $lang_prof_reg['Privacy options legend'] ?></legend>
 						<div class="infldset">
 							<input type="hidden" name="form_sent" value="1" />
+							<input type="hidden" name="csrf_token" value="<?php echo pun_csrf_token(); ?>" />
 							<p><?php echo $lang_prof_reg['Email setting info'] ?></p>
 							<div class="rbox">
 								<label><input type="radio" name="form[email_setting]" value="0"<?php if ($user['email_setting'] == '0') echo ' checked="checked"' ?> /><?php echo $lang_prof_reg['Email setting 1'] ?><br /></label>
@@ -2449,6 +2488,7 @@ $resultdate = format_time($date->getTimestamp(), false, null, null, false, true)
 		<h2><span><?php echo pun_htmlspecialchars($user['username']).' - '.$lang_profile['Section admin'] ?></span></h2>
 		<div class="box">
 		<form id="profile7" method="post" action="profile.php?section=admin&amp;id=<?php echo $id ?>">
+				<input type="hidden" name="csrf_token" value="<?php echo pun_csrf_token(); ?>" />
 				
 				
 								<div class="inform">

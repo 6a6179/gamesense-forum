@@ -19,6 +19,10 @@ if ($pid < 1)
 	
 $unlike = isset($_GET['unlike']) ? intval($_GET['unlike']) : 0;
 
+// Make sure we got here from the site
+confirm_referrer('viewtopic.php');
+check_csrf(isset($_GET['csrf_token']) ? $_GET['csrf_token'] : null);
+
 // Fetch some info about the likes
 $result = $db->query('SELECT p.id, p.poster_id, p.likes, f.id, fp.read_forum FROM '.$db->prefix.'posts AS p LEFT JOIN '.$db->prefix.'topics AS t ON t.id=p.topic_id LEFT JOIN '.$db->prefix.'forums AS f ON f.id=t.forum_id LEFT JOIN '.$db->prefix.'forum_perms AS fp ON (fp.forum_id=f.id AND fp.group_id=1) WHERE (fp.read_forum IS NULL OR fp.read_forum=1) AND p.id='.$pid) or error('Unable to fetch topic and like info', __FILE__, __LINE__, $db->error());
 
@@ -35,9 +39,6 @@ if ($cur_like['poster_id'] == $pun_user['id'])
 
 if (!empty($cur_like['likes']))
 {
-	// Make sure we got here from the site
-	confirm_referrer('viewtopic.php');
-	
 	$likes = unserialize($cur_like['likes']);
 	
 	// Check if the person has already voted
@@ -63,6 +64,9 @@ if (!empty($cur_like['likes']))
 }
 else
 	$likes = array();
+
+if ($unlike == 1)
+	message($lang_common['Bad request']);
 
 // Add the voter to the voters array
 $likes[$pun_user['id']] = $pun_user['username'];

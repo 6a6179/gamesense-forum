@@ -18,4 +18,7 @@ $cookie_path = '/';
 $cookie_secure = 0;
 $cookie_seed = '29f615ba38d74704';
 
+// Optional: only these proxy IPs/CIDRs may supply forwarded client IP headers.
+// define('FORUM_TRUSTED_PROXIES', array('203.0.113.10', '198.51.100.0/24'));
+
 define('PUN', 1);

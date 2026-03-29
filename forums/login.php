@@ -35,42 +35,23 @@ if (isset($_POST['form_sent']) && $action == 'in')
 	$cur_user = $db->fetch_assoc($result);
 
 	$authorized = false;
+	$needs_password_upgrade = false;
+	$updated_password_hash = isset($cur_user['password']) ? $cur_user['password'] : '';
 
 	if (!empty($cur_user['password']))
 	{
-		$form_password_hash = pun_hash($form_password); // Will result in a SHA-1 hash
-
-		// If there is a salt in the database we have upgraded from 1.3-legacy though haven't yet logged in
-		if (!empty($cur_user['salt']))
+		$authorized = forum_password_verify($form_password, $cur_user['password'], $cur_user['salt']);
+		if ($authorized && (!empty($cur_user['salt']) || forum_password_needs_rehash($cur_user['password'])))
 		{
-			$is_salt_authorized = pun_hash_equals(sha1($cur_user['salt'].sha1($form_password)), $cur_user['password']);
-			if ($is_salt_authorized) // 1.3 used sha1(salt.sha1(pass))
- 			{
-				$authorized = true;
-
-				$db->query('UPDATE '.$db->prefix.'users SET password=\''.$form_password_hash.'\', salt=NULL WHERE id='.$cur_user['id']) or error('Unable to update user password', __FILE__, __LINE__, $db->error());
-			}
+			$needs_password_upgrade = true;
+			$updated_password_hash = forum_password_hash($form_password);
 		}
-		// If the length isn't 40 then the password isn't using sha1, so it must be md5 from 1.2
-		else if (strlen($cur_user['password']) != 40)
-		{
-			$is_md5_authorized = pun_hash_equals(md5($form_password), $cur_user['password']);
-			if ($is_md5_authorized)
-			{
-				$authorized = true;
-
-				$db->query('UPDATE '.$db->prefix.'users SET password=\''.$form_password_hash.'\' WHERE id='.$cur_user['id']) or error('Unable to update user password', __FILE__, __LINE__, $db->error());
-			}
-		}
-		// Otherwise we should have a normal sha1 password
-		else
-			$authorized = pun_hash_equals($cur_user['password'], $form_password_hash);
 	}
 
 	if (!$authorized)
 		$errors[] = $lang_login['Wrong user/pass'];
 
-    if($cur_user['ga'] != null && $cur_user['ga_enabled'] == "1"){
+    if($authorized && $cur_user['ga'] != null && $cur_user['ga_enabled'] == "1"){
 			$ga=new GoogleAuthenticator;
 $code=$ga->getCode($cur_user['ga']);
 if ($code!=$_POST['2fa']){
@@ -91,6 +72,13 @@ if ($code!=$_POST['2fa']){
 	// Did everything go according to plan?
 	if (empty($errors))
 	{
+		if ($needs_password_upgrade)
+		{
+			$db->query('UPDATE '.$db->prefix.'users SET password=\''.$db->escape($updated_password_hash).'\', salt=NULL WHERE id='.$cur_user['id']) or error('Unable to update user password', __FILE__, __LINE__, $db->error());
+			$cur_user['password'] = $updated_password_hash;
+			$cur_user['salt'] = null;
+		}
+
 		// Update the status if this is the first time the user logged in
 		if ($cur_user['group_id'] == PUN_UNVERIFIED)
 		{
@@ -107,7 +95,7 @@ if ($code!=$_POST['2fa']){
 		$db->query('DELETE FROM '.$db->prefix.'online WHERE ident=\''.$db->escape(get_remote_address()).'\'') or error('Unable to delete from online list', __FILE__, __LINE__, $db->error());
 
 		$expire = ($save_pass == '1') ? time() + 1209600 : time() + $pun_config['o_timeout_visit'];
-		pun_setcookie($cur_user['id'], $form_password_hash, $expire);
+		pun_setcookie($cur_user['id'], $cur_user['password'], $expire);
 
 		// Reset tracked topics
 		set_tracked_topics(null);
@@ -154,6 +142,7 @@ else if ($action == 'forget' || $action == 'forget_2')
 	if (isset($_POST['form_sent']))
 	{
 		flux_hook('forget_password_before_validation');
+		check_csrf($_POST['csrf_token']);
 
 		require PUN_ROOT.'include/email.php';
 
@@ -189,16 +178,15 @@ else if ($action == 'forget' || $action == 'forget_2')
 					if ($cur_hit['last_email_sent'] != '' && (time() - $cur_hit['last_email_sent']) < 3600 && (time() - $cur_hit['last_email_sent']) >= 0)
 						message(sprintf($lang_login['Email flood'], intval((3600 - (time() - $cur_hit['last_email_sent'])) / 60)), true);
 
-					// Generate a new password and a new password activation code
-					$new_password = random_pass(12);
+					// Generate a password reset selector and token
 					$new_password_key = random_pass(8);
+					$reset_token = random_key(32, true);
 
-					$db->query('UPDATE '.$db->prefix.'users SET activate_string=\''.pun_hash($new_password).'\', activate_key=\''.$new_password_key.'\', last_email_sent = '.time().' WHERE id='.$cur_hit['id']) or error('Unable to update activation data', __FILE__, __LINE__, $db->error());
+					$db->query('UPDATE '.$db->prefix.'users SET activate_string=\''.$db->escape(forum_password_hash($reset_token)).'\', activate_key=\''.$db->escape($new_password_key).'\', last_email_sent = '.time().' WHERE id='.$cur_hit['id']) or error('Unable to update activation data', __FILE__, __LINE__, $db->error());
 
 					// Do the user specific replacements to the template
 					$cur_mail_message = str_replace('<username>', $cur_hit['username'], $mail_message);
-					$cur_mail_message = str_replace('<activation_url>', get_base_url().'/profile.php?id='.$cur_hit['id'].'&action=change_pass&key='.$new_password_key, $cur_mail_message);
-					$cur_mail_message = str_replace('<new_password>', $new_password, $cur_mail_message);
+					$cur_mail_message = str_replace('<activation_url>', get_base_url().'/profile.php?id='.$cur_hit['id'].'&action=change_pass&key='.$new_password_key.'&token='.$reset_token, $cur_mail_message);
 
 					pun_mail($email, $mail_subject, $cur_mail_message);
 				}
@@ -253,6 +241,7 @@ if (!empty($errors))
 					<legend><?php echo $lang_login['Request pass legend'] ?></legend>
 					<div class="infldset">
 						<input type="hidden" name="form_sent" value="1" />
+						<input type="hidden" name="csrf_token" value="<?php echo pun_csrf_token(); ?>" />
 						<label class="required"><strong><?php echo $lang_common['Email'] ?> <span><?php echo $lang_common['Required'] ?></span></strong><br /><input id="req_email" type="text" name="req_email" value="<?php if (isset($_POST['req_email'])) echo pun_htmlspecialchars($_POST['req_email']); ?>" size="50" maxlength="80" /><br /></label>
 						<p><?php echo $lang_login['Request pass info'] ?></p>
 					</div>

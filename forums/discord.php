@@ -1,435 +1,212 @@
-<head>
-<title>Discord / GameSense</title>
-</head>
 <?php
 
 define('PUN_ROOT', dirname(__FILE__).'/');
 require PUN_ROOT.'include/common.php';
-//require PUN_ROOT.'header.php';
+
 if ($pun_user['g_read_board'] == '0')
 	message($lang_common['No view']);
+if ($pun_user['is_guest'])
+	message($lang_common['No permission']);
 
- require __DIR__ . '/vendor/autoload.php';
+require __DIR__.'/vendor/autoload.php';
 
-  use Wohali\OAuth2\Client\Provider\Discord;
-  use RestCord\DiscordClient;
+session_start();
 
-  session_start();
-// you can use the following code to use the discord api
-  $provider = new \Wohali\OAuth2\Client\Provider\Discord([
-      'clientId' => '930689854352830036', //discord id client
-      'clientSecret' => '-5s_IqOv5q03f59c9cvJg82Daf8TLR7M', //secret discord
-      'redirectUri' => 'https://gamesense.pub/forums/discord.php' // redirect url
-  ]);
-  $options = [
-    'scope' => ['guilds.join','identify']
-];
+function discord_render_page($message, $show_form = false)
+{
+	header('Content-Type: text/html; charset=UTF-8');
 
- 
- if (!isset($_GET['code'])) {
-	  
-	   if(isset($_POST['redirect'])){
-       
-      $authUrl = $provider->getAuthorizationUrl($options);
-      $_SESSION['oauth2state'] = $provider->getState();
-	  
-	
-      header('Location: ' . $authUrl); 
-	   }
-//$discord = new DiscordClient(['token' => 'NDUyOTA5NDk2MDI1NzQzMzYw.DfXsgg.9y4IcVGEDcZ4JPZLuttAHRhD-mU']); // Token is required
+?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
+	<title>Discord / GameSense</title>
+	<style type="text/css">
+		body {
+			margin: 0;
+			font-family: Arial, sans-serif;
+			background: #101010;
+			color: #eee;
+		}
+		.page {
+			min-height: 100vh;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			padding: 24px;
+		}
+		.panel {
+			width: 100%;
+			max-width: 420px;
+			padding: 32px;
+			border: 1px solid #222;
+			background: #171717;
+			text-align: center;
+		}
+		h1 {
+			margin: 0 0 16px;
+			font-size: 40px;
+			font-weight: 700;
+		}
+		p {
+			margin: 0 0 24px;
+			font-size: 16px;
+			line-height: 1.5;
+		}
+		button {
+			border: 0;
+			padding: 12px 18px;
+			background: #5865f2;
+			color: #fff;
+			font-size: 14px;
+			cursor: pointer;
+		}
+	</style>
+</head>
+<body>
+	<div class="page">
+		<div class="panel">
+			<h1>GameSense</h1>
+			<p><?php echo pun_htmlspecialchars($message); ?></p>
+<?php if ($show_form): ?>			<form method="post" action="discord.php">
+				<input type="hidden" name="csrf_token" value="<?php echo pun_csrf_token(); ?>" />
+				<button type="submit" name="redirect" value="1">Continue with Discord</button>
+			</form>
+<?php endif; ?>		</div>
+	</div>
+</body>
+</html>
+<?php
 
-//var_dump($discord->guild->getGuildRoles(['guild.id' => 452880601867878410, 'name' => "Premium user"]));
-  } elseif (empty($_GET['state']) || ($_GET['state'] !== $_SESSION['oauth2state'])) {
+	exit;
+}
 
-      unset($_SESSION['oauth2state']);
-	 header('Location: discord.php?error=yes');
-      
-	  
+function discord_clear_state()
+{
+	if (isset($_SESSION['oauth2state']))
+		unset($_SESSION['oauth2state']);
+}
 
-  } else {
-	  
-	 
-	  $sessionuser = $pun_user['username'];
-	 
-  $sql = $db->query("SELECT `discord`,`group_id`,`csgo` FROM `gs_users` WHERE `username` = '$sessionuser'");
-  if ($sql->num_rows > 0) {
-    // output data of each row
-    while($sql = $sql->fetch_assoc()) {
-		$token = $provider->getAccessToken('authorization_code', [
-		'code' => $_GET['code'],
-	]);
-   $user = $provider->getResourceOwner($token);
-      $discord_id = $user->getId();
-  if($sql['discord'] == null || $sql['discord'] == $discord_id){
-  
-  $iduser1 = new DateTime($sql['csgo']);
+function discord_redirect($status)
+{
+	discord_clear_state();
+	header('Location: discord.php?status='.urlencode($status));
+	exit;
+}
 
-  
-  $iduser12 = new DateTime('NOW');
+$discord_settings = array(
+	'client_id' => getenv('GS_DISCORD_CLIENT_ID'),
+	'client_secret' => getenv('GS_DISCORD_CLIENT_SECRET'),
+	'redirect_uri' => getenv('GS_DISCORD_REDIRECT_URI'),
+	'bot_token' => getenv('GS_DISCORD_BOT_TOKEN'),
+	'guild_id' => getenv('GS_DISCORD_GUILD_ID'),
+	'premium_role_id' => getenv('GS_DISCORD_PREMIUM_ROLE_ID'),
+);
 
-  
-  
-if($sql['group_id'] != 4 &&  $iduser1 > $iduser12) 
-	
+foreach ($discord_settings as $setting_value)
+{
+	if ($setting_value === false || $setting_value === '')
+		discord_render_page('Discord linking unavailable.');
+}
+
+$provider = new \Wohali\OAuth2\Client\Provider\Discord(array(
+	'clientId' => $discord_settings['client_id'],
+	'clientSecret' => $discord_settings['client_secret'],
+	'redirectUri' => $discord_settings['redirect_uri'],
+));
+
+if (isset($_GET['status']))
+{
+	switch ($_GET['status'])
 	{
-	
-
-  
-  
-$client = new DiscordClient([
-        'token' => 'OTMwNjg5ODU0Mz3UyODEwMDM2.GDwd0Z.ZxN0sORQuv16IhT4QuW9gLNsZifda9fhup_Rs' //discord token
-      ]);
-	  
-	 // $acceptedRoles = ["Premium User"];
-		$client->guild->addGuildMember([
-			'guild.id' => 947880898945253376, //discord server id
-			'user.id' => (int)$discord_id,
-			'access_token' => (string)$token,
-			'nick' => $sessionuser,
-			'roles' => array(951719010490326124) //discord roles
-			//'roles' => 452883032576098335, 'name' => 'Premium user', 'color' => 16729413, 'hoist' => true, 'managed' => false, 'mentionable' => true, 'position' => 6, 'permissions' => 37080128)
-		]);
-		
-		
-		
-		//echo $response;
-	 
-	  
-	$newipollo1 = $_SERVER["HTTP_CF_CONNECTING_IP"];
-
-$db->query("UPDATE `gs_users` SET `discord_ip` = '$newipollo1' WHERE `username` = '$sessionuser'");
-	  
-if($sql['discord'] != $discord_id){
-
-$db->query("UPDATE `gs_users` SET `discord` = '$discord_id' WHERE `username` = '$sessionuser'");
-
-
-
-
-}
-
-
- unset($_SESSION['oauth2state']);
-	
-	
-
-	  header('Location: discord.php?status=successfully');
-	  
-	  }
-	 else {
-		
-		
-		 unset($_SESSION['oauth2state']);
-	 header('Location: discord.php?error=yes');
-      
-		
-		
+		case 'success':
+			discord_render_page('Discord account linked successfully.');
+			break;
+		case 'mismatch':
+			discord_render_page('Your Discord account does not match the one already linked. Sign in with the expected account and try again.', true);
+			break;
+		case 'error':
+		default:
+			discord_render_page('Discord linking failed. Please try again.', true);
+			break;
 	}
-	  
-	  
-	  
-  } else {
-	  	  
-if($sql['discord'] != $discord_id){
-
-$db->query("UPDATE `gs_users` SET `discord_new` = '$discord_id' WHERE `username` = '$sessionuser'");
-$newipollo = $_SERVER["HTTP_CF_CONNECTING_IP"];
-
-$db->query("UPDATE `gs_users` SET `discord_ip_new` = '$newipollo' WHERE `username` = '$sessionuser'");
-
-
 }
-	  
-	     
-	  
-	 unset($_SESSION['oauth2state']);
-	  header('Location: discord.php?id=false');
-	
-  }
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-	  
-	  }
-  }
-  
-	  
-	  
-	  
-	  
-	  
-	  
-  }
 
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['redirect']))
+{
+	check_csrf($_POST['csrf_token']);
 
-?>
+	$auth_url = $provider->getAuthorizationUrl(array(
+		'scope' => array('guilds.join', 'identify'),
+	));
+	$_SESSION['oauth2state'] = $provider->getState();
 
+	header('Location: '.$auth_url);
+	exit;
+}
 
+if (!isset($_GET['code']))
+	discord_render_page('Connect your Discord account to continue.', true);
 
-<?php if(isset($_GET['error'])){ ?>
+if (empty($_GET['state']) || empty($_SESSION['oauth2state']) || $_GET['state'] !== $_SESSION['oauth2state'])
+	discord_redirect('error');
 
-<html lang="en-US"><head>
-	<meta charset="UTF-8">
-	<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
-	<meta name="robots" content="noindex, nofollow">
-    <title>GameSense</title>
-	<link href="https://fonts.googleapis.com/css?family=Raleway:900,400" rel="stylesheet" type="text/css">
-	<style type="text/css">#title h1,body{font-weight:400;color:#eee}.divide,.outer{position:absolute;width:100%}#title h1,.trifecta,p{text-align:center}body,html{margin:0;padding:0;height:100%}body{font-family:Raleway,Helvetica Neue,Helvetica,sans-serif;font-size:14px;background-color:#101010}p{font-size:1.75em;color:#ddd;margin:10px 0 0}.divide{top:0;padding:0;margin:0;background:#1e5799;background:-moz-linear-gradient(left,#1e5799 0,#f300ff 50%,#e0ff00 100%);background:-webkit-gradient(linear,left top,right top,color-stop(0,#1e5799),color-stop(50%,#f300ff),color-stop(100%,#e0ff00));background:-webkit-linear-gradient(left,#1e5799 0,#f300ff 50%,#e0ff00 100%);background:-o-linear-gradient(left,#1e5799 0,#f300ff 50%,#e0ff00 100%);background:-ms-linear-gradient(left,#1e5799 0,#f300ff 50%,#e0ff00 100%);background:linear-gradient(to right,#1e5799 0,#f300ff 50%,#e0ff00 100%);filter:progid:DXImageTransform.Microsoft.gradient( startColorstr='#1e5799', endColorstr='#e0ff00', GradientType=1 );height:3px;border-bottom:1px solid #000}.trifecta .one,.trifecta .two,.trifecta>div{background-color:#eee}#title h1{margin:0 auto;padding:0;font-size:62pt;height:120px}#title span{color:#95b806}.outer{display:table;height:100%}.middle{display:table-cell;vertical-align:middle}.inner{margin-left:auto;margin-right:auto;width:400px}.trifecta{margin:0 auto;font-size:26px;width:80px}.trifecta>div{display:inline-block;width:14px;height:14px;border-radius:100%;-webkit-animation:bdelay 1.4s infinite ease-in-out both;animation:bdelay 1.4s infinite ease-in-out both}.trifecta .one{-webkit-animation-delay:-.32s;animation-delay:-.32s}.trifecta .two{-webkit-animation-delay:-.16s;animation-delay:-.16s}@-webkit-keyframes bdelay{0%,100%,80%{-webkit-transform:scale(0)}40%{-webkit-transform:scale(1)}}@keyframes bdelay{0%,100%,80%{-webkit-transform:scale(0);transform:scale(0)}40%{transform:scale(1);-webkit-transform:scale(1)}}</style>
-	<script type="text/javascript">
-	//<![CDATA[
-	(function(){
-		var a = function() {try{return !!window.addEventListener} catch(e) {return !1} },
-		b = function(b, c) {a() ? document.addEventListener("DOMContentLoaded", b, c) : document.attachEvent("onreadystatechange", b)};
-		b(function(){
-			var d = new Date();
-			d.setTime(d.getTime() + (30000));
-			document.cookie = "bypass=1; expires=" + d.toUTCString() + "; path=/";
-			var a = document.getElementById('gs-content');a.style.display = 'block';
-			setTimeout(function(){
-				var t,r,a,k,i,f, p6gdn4Q={"eNG8aiA":+((!+[]+!![]+[])+(!+[]+!![]+[])+(!+[]+!![]+!![]+!![]+!![]+[])+(!+[]+!![]+!![]+!![]+!![]+!![]+!![]+[])+(!+[]+!![]+!![]+!![])+(!+[]+!![]+!![]+!![]+!![]+!![]+!![]+[])+(+[])+(!+[]+!![]+!![]+!![]+!![]+!![]+!![]+!![])+(!+[]+!![]+!![]))/+((+!![])+(!+[]+!![]+!![]+!![]+!![]+!![]+[])+(!+[]+!![]+!![])+(!+[]+!![]+!![]+[])+(!+[]+!![]+!![]+!![]+!![]+!![])+(!+[]+!![]+!![]+[])+(!+[]+!![])+(!+[]+!![]+!![]+[])+(!+[]+!![]+[]))};
-				t = document.createElement('div');
-				t.innerHTML="<a href='/'>x</a>";
-				t = t.firstChild.href;r = t.match(/https?:\/\//)[0];
-				t = t.substr(r.length); t = t.substr(0,t.length-1);
-				a = document.getElementById('redirect');
-				f = document.getElementById('challenge-form');
-				;p6gdn4Q.eNG8aiA*=+((!+[]+!![]+!![]+!![]+!![]+!![]+[])+(!+[]+!![]+!![]+!![]+!![]+!![]+!![])+(!+[]+!![]+!![]+!![]+!![]+[])+(!+[]+!![]+!![]+!![]+!![]+!![]+!![])+(+!![])+(!+[]+!![]+!![]+!![]+!![]+!![]+!![])+(!+[]+!![]+!![]+!![]+!![]+!![]+!![]+[])+(!+[]+!![]+!![]+!![]+!![]+!![])+(!+[]+!![]+!![]+!![]+!![]))/+((+!![])+(!+[]+!![]+[])+(+[])+(!+[]+!![]+!![]+[])+(!+[]+!![]+!![])+(!+[]+!![]+!![]+!![]+[])+(!+[]+!![])+(!+[]+!![]+!![]+!![]+[])+(!+[]+!![]+!![]+!![]+!![]+!![]+!![]+[]));a.value = +p6gdn4Q.eNG8aiA.toFixed(10); '; 121'
-				f.action += location.hash;
-				f.submit();
-			}, 4000);
-		}, false);
-	})();
-	//]]>
-	</script>
-</head>
-<body>
+try
+{
+	$result = $db->query('SELECT discord, group_id, csgo FROM '.$db->prefix.'users WHERE id='.(int) $pun_user['id']) or error('Unable to fetch user info', __FILE__, __LINE__, $db->error());
+	if (!$db->num_rows($result))
+		discord_redirect('error');
 
-<div class="divide"></div>
-<div class="outer"><div class="middle"><div class="inner">
-	<div id="title">
-		<h1>game<span>sense</span></h1>
-	</div>
-	<noscript><h1 data-translate="turn_on_js" style="color:#bd2426;">Please turn JavaScript on and reload the page.</h1></noscript>
-	<div id="gs-content" style="display: block;">
-		<p>Access denied</p>
-		<div class="trifecta">
-			<div class="one"></div>
-			<div class="two"></div>
-			<div class="three"></div>
-		</div>
-		<form id="challenge-form" action="index.php" method="post">
-			<input type="hidden" id="redirect" name="redirect">
-		</form>
-	</div>
-</div></div></div>
-    
+	$forum_user = $db->fetch_assoc($result);
+	$token = $provider->getAccessToken('authorization_code', array(
+		'code' => $_GET['code'],
+	));
+	$resource_owner = $provider->getResourceOwner($token);
+	$discord_id = (string) $resource_owner->getId();
 
-</body></html>
+	$remote_addr = $db->escape(get_remote_address());
 
+	if (!empty($forum_user['discord']) && $forum_user['discord'] !== $discord_id)
+	{
+		$db->query('UPDATE '.$db->prefix.'users SET discord_new=\''.$db->escape($discord_id).'\', discord_ip_new=\''.$remote_addr.'\' WHERE id='.(int) $pun_user['id']) or error('Unable to update Discord mismatch data', __FILE__, __LINE__, $db->error());
+		discord_redirect('mismatch');
+	}
 
-<?php
-}elseif(isset($_GET['id'])){ 
-	
-?>
-<html lang="en-US"><head>
-	<meta charset="UTF-8">
-	<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
-	<meta name="robots" content="noindex, nofollow">
-    <title>GameSense</title>
-	<link href="https://fonts.googleapis.com/css?family=Raleway:900,400" rel="stylesheet" type="text/css">
-	<style type="text/css">#title h1,body{font-weight:400;color:#eee}.divide,.outer{position:absolute;width:100%}#title h1,.trifecta,p{text-align:center}body,html{margin:0;padding:0;height:100%}body{font-family:Raleway,Helvetica Neue,Helvetica,sans-serif;font-size:14px;background-color:#101010}p{font-size:1.75em;color:#ddd;margin:10px 0 0}.divide{top:0;padding:0;margin:0;background:#1e5799;background:-moz-linear-gradient(left,#1e5799 0,#f300ff 50%,#e0ff00 100%);background:-webkit-gradient(linear,left top,right top,color-stop(0,#1e5799),color-stop(50%,#f300ff),color-stop(100%,#e0ff00));background:-webkit-linear-gradient(left,#1e5799 0,#f300ff 50%,#e0ff00 100%);background:-o-linear-gradient(left,#1e5799 0,#f300ff 50%,#e0ff00 100%);background:-ms-linear-gradient(left,#1e5799 0,#f300ff 50%,#e0ff00 100%);background:linear-gradient(to right,#1e5799 0,#f300ff 50%,#e0ff00 100%);filter:progid:DXImageTransform.Microsoft.gradient( startColorstr='#1e5799', endColorstr='#e0ff00', GradientType=1 );height:3px;border-bottom:1px solid #000}.trifecta .one,.trifecta .two,.trifecta>div{background-color:#eee}#title h1{margin:0 auto;padding:0;font-size:62pt;height:120px}#title span{color:#95b806}.outer{display:table;height:100%}.middle{display:table-cell;vertical-align:middle}.inner{margin-left:auto;margin-right:auto;width:400px}.trifecta{margin:0 auto;font-size:26px;width:80px}.trifecta>div{display:inline-block;width:14px;height:14px;border-radius:100%;-webkit-animation:bdelay 1.4s infinite ease-in-out both;animation:bdelay 1.4s infinite ease-in-out both}.trifecta .one{-webkit-animation-delay:-.32s;animation-delay:-.32s}.trifecta .two{-webkit-animation-delay:-.16s;animation-delay:-.16s}@-webkit-keyframes bdelay{0%,100%,80%{-webkit-transform:scale(0)}40%{-webkit-transform:scale(1)}}@keyframes bdelay{0%,100%,80%{-webkit-transform:scale(0);transform:scale(0)}40%{transform:scale(1);-webkit-transform:scale(1)}}</style>
-	<script type="text/javascript">
-	//<![CDATA[
-	(function(){
-		var a = function() {try{return !!window.addEventListener} catch(e) {return !1} },
-		b = function(b, c) {a() ? document.addEventListener("DOMContentLoaded", b, c) : document.attachEvent("onreadystatechange", b)};
-		b(function(){
-			var d = new Date();
-			d.setTime(d.getTime() + (30000));
-			document.cookie = "bypass=1; expires=" + d.toUTCString() + "; path=/";
-			var a = document.getElementById('gs-content');a.style.display = 'block';
-			setTimeout(function(){
-				var t,r,a,k,i,f, p6gdn4Q={"eNG8aiA":+((!+[]+!![]+[])+(!+[]+!![]+[])+(!+[]+!![]+!![]+!![]+!![]+[])+(!+[]+!![]+!![]+!![]+!![]+!![]+!![]+[])+(!+[]+!![]+!![]+!![])+(!+[]+!![]+!![]+!![]+!![]+!![]+!![]+[])+(+[])+(!+[]+!![]+!![]+!![]+!![]+!![]+!![]+!![])+(!+[]+!![]+!![]))/+((+!![])+(!+[]+!![]+!![]+!![]+!![]+!![]+[])+(!+[]+!![]+!![])+(!+[]+!![]+!![]+[])+(!+[]+!![]+!![]+!![]+!![]+!![])+(!+[]+!![]+!![]+[])+(!+[]+!![])+(!+[]+!![]+!![]+[])+(!+[]+!![]+[]))};
-				t = document.createElement('div');
-				t.innerHTML="<a href='/'>x</a>";
-				t = t.firstChild.href;r = t.match(/https?:\/\//)[0];
-				t = t.substr(r.length); t = t.substr(0,t.length-1);
-				a = document.getElementById('redirect');
-				f = document.getElementById('challenge-form');
-				;p6gdn4Q.eNG8aiA*=+((!+[]+!![]+!![]+!![]+!![]+!![]+[])+(!+[]+!![]+!![]+!![]+!![]+!![]+!![])+(!+[]+!![]+!![]+!![]+!![]+[])+(!+[]+!![]+!![]+!![]+!![]+!![]+!![])+(+!![])+(!+[]+!![]+!![]+!![]+!![]+!![]+!![])+(!+[]+!![]+!![]+!![]+!![]+!![]+!![]+[])+(!+[]+!![]+!![]+!![]+!![]+!![])+(!+[]+!![]+!![]+!![]+!![]))/+((+!![])+(!+[]+!![]+[])+(+[])+(!+[]+!![]+!![]+[])+(!+[]+!![]+!![])+(!+[]+!![]+!![]+!![]+[])+(!+[]+!![])+(!+[]+!![]+!![]+!![]+[])+(!+[]+!![]+!![]+!![]+!![]+!![]+!![]+[]));a.value = +p6gdn4Q.eNG8aiA.toFixed(10); '; 121'
-				f.action += location.hash;
-				f.submit();
-			}, 4000);
-		}, false);
-	})();
-	//]]>
-	</script>
-</head>
-<body>
+	$subscription_is_active = false;
+	if (!empty($forum_user['csgo']))
+	{
+		try
+		{
+			$subscription_is_active = (new DateTime($forum_user['csgo']) > new DateTime('now'));
+		}
+		catch (Exception $e)
+		{
+			$subscription_is_active = false;
+		}
+	}
 
-<div class="divide"></div>
-<div class="outer"><div class="middle"><div class="inner">
-	<div id="title">
-		<h1>game<span>sense</span></h1>
-	</div>
-	<noscript><h1 data-translate="turn_on_js" style="color:#bd2426;">Please turn JavaScript on and reload the page.</h1></noscript>
-	<div id="gs-content" style="display: block;">
-		<p>Your discord id does not match with registered in our database</p>
-		<div class="trifecta">
-			<div class="one"></div>
-			<div class="two"></div>
-			<div class="three"></div>
-		</div>
-		<form id="challenge-form" action="index.php" method="post">
-			<input type="hidden" id="redirect" name="redirect">
-		</form>
-	</div>
-</div></div></div>
-    
+	if ($forum_user['group_id'] == 4 || !$subscription_is_active)
+		discord_redirect('error');
 
-</body></html>
+	$client = new \RestCord\DiscordClient(array(
+		'token' => $discord_settings['bot_token']
+	));
 
+	$client->guild->addGuildMember(array(
+		'guild.id' => (int) $discord_settings['guild_id'],
+		'user.id' => (int) $discord_id,
+		'access_token' => (string) $token,
+		'nick' => $pun_user['username'],
+		'roles' => array((int) $discord_settings['premium_role_id'])
+	));
 
+	$db->query('UPDATE '.$db->prefix.'users SET discord=\''.$db->escape($discord_id).'\', discord_ip=\''.$remote_addr.'\', discord_new=NULL, discord_ip_new=NULL WHERE id='.(int) $pun_user['id']) or error('Unable to update Discord data', __FILE__, __LINE__, $db->error());
 
-
-<?php
-}elseif(isset($_GET['status'])){ 
-	
-?>
-<html lang="en-US"><head>
-	<meta charset="UTF-8">
-	<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
-	<meta name="robots" content="noindex, nofollow">
-    <title>GameSense</title>
-	<link href="https://fonts.googleapis.com/css?family=Raleway:900,400" rel="stylesheet" type="text/css">
-	<style type="text/css">#title h1,body{font-weight:400;color:#eee}.divide,.outer{position:absolute;width:100%}#title h1,.trifecta,p{text-align:center}body,html{margin:0;padding:0;height:100%}body{font-family:Raleway,Helvetica Neue,Helvetica,sans-serif;font-size:14px;background-color:#101010}p{font-size:1.75em;color:#ddd;margin:10px 0 0}.divide{top:0;padding:0;margin:0;background:#1e5799;background:-moz-linear-gradient(left,#1e5799 0,#f300ff 50%,#e0ff00 100%);background:-webkit-gradient(linear,left top,right top,color-stop(0,#1e5799),color-stop(50%,#f300ff),color-stop(100%,#e0ff00));background:-webkit-linear-gradient(left,#1e5799 0,#f300ff 50%,#e0ff00 100%);background:-o-linear-gradient(left,#1e5799 0,#f300ff 50%,#e0ff00 100%);background:-ms-linear-gradient(left,#1e5799 0,#f300ff 50%,#e0ff00 100%);background:linear-gradient(to right,#1e5799 0,#f300ff 50%,#e0ff00 100%);filter:progid:DXImageTransform.Microsoft.gradient( startColorstr='#1e5799', endColorstr='#e0ff00', GradientType=1 );height:3px;border-bottom:1px solid #000}.trifecta .one,.trifecta .two,.trifecta>div{background-color:#eee}#title h1{margin:0 auto;padding:0;font-size:62pt;height:120px}#title span{color:#95b806}.outer{display:table;height:100%}.middle{display:table-cell;vertical-align:middle}.inner{margin-left:auto;margin-right:auto;width:400px}.trifecta{margin:0 auto;font-size:26px;width:80px}.trifecta>div{display:inline-block;width:14px;height:14px;border-radius:100%;-webkit-animation:bdelay 1.4s infinite ease-in-out both;animation:bdelay 1.4s infinite ease-in-out both}.trifecta .one{-webkit-animation-delay:-.32s;animation-delay:-.32s}.trifecta .two{-webkit-animation-delay:-.16s;animation-delay:-.16s}@-webkit-keyframes bdelay{0%,100%,80%{-webkit-transform:scale(0)}40%{-webkit-transform:scale(1)}}@keyframes bdelay{0%,100%,80%{-webkit-transform:scale(0);transform:scale(0)}40%{transform:scale(1);-webkit-transform:scale(1)}}</style>
-	<script type="text/javascript">
-	//<![CDATA[
-	(function(){
-		var a = function() {try{return !!window.addEventListener} catch(e) {return !1} },
-		b = function(b, c) {a() ? document.addEventListener("DOMContentLoaded", b, c) : document.attachEvent("onreadystatechange", b)};
-		b(function(){
-			var d = new Date();
-			d.setTime(d.getTime() + (30000));
-			document.cookie = "bypass=1; expires=" + d.toUTCString() + "; path=/";
-			var a = document.getElementById('gs-content');a.style.display = 'block';
-			setTimeout(function(){
-				var t,r,a,k,i,f, p6gdn4Q={"eNG8aiA":+((!+[]+!![]+[])+(!+[]+!![]+[])+(!+[]+!![]+!![]+!![]+!![]+[])+(!+[]+!![]+!![]+!![]+!![]+!![]+!![]+[])+(!+[]+!![]+!![]+!![])+(!+[]+!![]+!![]+!![]+!![]+!![]+!![]+[])+(+[])+(!+[]+!![]+!![]+!![]+!![]+!![]+!![]+!![])+(!+[]+!![]+!![]))/+((+!![])+(!+[]+!![]+!![]+!![]+!![]+!![]+[])+(!+[]+!![]+!![])+(!+[]+!![]+!![]+[])+(!+[]+!![]+!![]+!![]+!![]+!![])+(!+[]+!![]+!![]+[])+(!+[]+!![])+(!+[]+!![]+!![]+[])+(!+[]+!![]+[]))};
-				t = document.createElement('div');
-				t.innerHTML="<a href='/'>x</a>";
-				t = t.firstChild.href;r = t.match(/https?:\/\//)[0];
-				t = t.substr(r.length); t = t.substr(0,t.length-1);
-				a = document.getElementById('redirect');
-				f = document.getElementById('challenge-form');
-				;p6gdn4Q.eNG8aiA*=+((!+[]+!![]+!![]+!![]+!![]+!![]+[])+(!+[]+!![]+!![]+!![]+!![]+!![]+!![])+(!+[]+!![]+!![]+!![]+!![]+[])+(!+[]+!![]+!![]+!![]+!![]+!![]+!![])+(+!![])+(!+[]+!![]+!![]+!![]+!![]+!![]+!![])+(!+[]+!![]+!![]+!![]+!![]+!![]+!![]+[])+(!+[]+!![]+!![]+!![]+!![]+!![])+(!+[]+!![]+!![]+!![]+!![]))/+((+!![])+(!+[]+!![]+[])+(+[])+(!+[]+!![]+!![]+[])+(!+[]+!![]+!![])+(!+[]+!![]+!![]+!![]+[])+(!+[]+!![])+(!+[]+!![]+!![]+!![]+[])+(!+[]+!![]+!![]+!![]+!![]+!![]+!![]+[]));a.value = +p6gdn4Q.eNG8aiA.toFixed(10); '; 121'
-				f.action += location.hash;
-				f.submit();
-			}, 4000);
-		}, false);
-	})();
-	//]]>
-	</script>
-</head>
-<body>
-
-<div class="divide"></div>
-<div class="outer"><div class="middle"><div class="inner">
-	<div id="title">
-		<h1>game<span>sense</span></h1>
-	</div>
-	<noscript><h1 data-translate="turn_on_js" style="color:#bd2426;">Please turn JavaScript on and reload the page.</h1></noscript>
-	<div id="gs-content" style="display: block;">
-		<p>Successful</p>
-		<div class="trifecta">
-			<div class="one"></div>
-			<div class="two"></div>
-			<div class="three"></div>
-		</div>
-		<form id="challenge-form" action="index.php" method="post">
-			<input type="hidden" id="redirect" name="redirect">
-		</form>
-	</div>
-</div></div></div>
-    
-
-</body></html>
-
-<?php } elseif (!isset($_GET['code'])) {?>
-<html lang="en-US"><head>
-	<meta charset="UTF-8">
-	<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
-	<meta name="robots" content="noindex, nofollow">
-    <title>GameSense</title>
-	<link href="https://fonts.googleapis.com/css?family=Raleway:900,400" rel="stylesheet" type="text/css">
-	<style type="text/css">#title h1,body{font-weight:400;color:#eee}.divide,.outer{position:absolute;width:100%}#title h1,.trifecta,p{text-align:center}body,html{margin:0;padding:0;height:100%}body{font-family:Raleway,Helvetica Neue,Helvetica,sans-serif;font-size:14px;background-color:#101010}p{font-size:1.75em;color:#ddd;margin:10px 0 0}.divide{top:0;padding:0;margin:0;background:#1e5799;background:-moz-linear-gradient(left,#1e5799 0,#f300ff 50%,#e0ff00 100%);background:-webkit-gradient(linear,left top,right top,color-stop(0,#1e5799),color-stop(50%,#f300ff),color-stop(100%,#e0ff00));background:-webkit-linear-gradient(left,#1e5799 0,#f300ff 50%,#e0ff00 100%);background:-o-linear-gradient(left,#1e5799 0,#f300ff 50%,#e0ff00 100%);background:-ms-linear-gradient(left,#1e5799 0,#f300ff 50%,#e0ff00 100%);background:linear-gradient(to right,#1e5799 0,#f300ff 50%,#e0ff00 100%);filter:progid:DXImageTransform.Microsoft.gradient( startColorstr='#1e5799', endColorstr='#e0ff00', GradientType=1 );height:3px;border-bottom:1px solid #000}.trifecta .one,.trifecta .two,.trifecta>div{background-color:#eee}#title h1{margin:0 auto;padding:0;font-size:62pt;height:120px}#title span{color:#95b806}.outer{display:table;height:100%}.middle{display:table-cell;vertical-align:middle}.inner{margin-left:auto;margin-right:auto;width:400px}.trifecta{margin:0 auto;font-size:26px;width:80px}.trifecta>div{display:inline-block;width:14px;height:14px;border-radius:100%;-webkit-animation:bdelay 1.4s infinite ease-in-out both;animation:bdelay 1.4s infinite ease-in-out both}.trifecta .one{-webkit-animation-delay:-.32s;animation-delay:-.32s}.trifecta .two{-webkit-animation-delay:-.16s;animation-delay:-.16s}@-webkit-keyframes bdelay{0%,100%,80%{-webkit-transform:scale(0)}40%{-webkit-transform:scale(1)}}@keyframes bdelay{0%,100%,80%{-webkit-transform:scale(0);transform:scale(0)}40%{transform:scale(1);-webkit-transform:scale(1)}}</style>
-	<script type="text/javascript">
-	//<![CDATA[
-	(function(){
-		var a = function() {try{return !!window.addEventListener} catch(e) {return !1} },
-		b = function(b, c) {a() ? document.addEventListener("DOMContentLoaded", b, c) : document.attachEvent("onreadystatechange", b)};
-		b(function(){
-			var d = new Date();
-			d.setTime(d.getTime() + (30000));
-			document.cookie = "bypass=1; expires=" + d.toUTCString() + "; path=/";
-			var a = document.getElementById('gs-content');a.style.display = 'block';
-			setTimeout(function(){
-				var t,r,a,k,i,f, p6gdn4Q={"eNG8aiA":+((!+[]+!![]+[])+(!+[]+!![]+[])+(!+[]+!![]+!![]+!![]+!![]+[])+(!+[]+!![]+!![]+!![]+!![]+!![]+!![]+[])+(!+[]+!![]+!![]+!![])+(!+[]+!![]+!![]+!![]+!![]+!![]+!![]+[])+(+[])+(!+[]+!![]+!![]+!![]+!![]+!![]+!![]+!![])+(!+[]+!![]+!![]))/+((+!![])+(!+[]+!![]+!![]+!![]+!![]+!![]+[])+(!+[]+!![]+!![])+(!+[]+!![]+!![]+[])+(!+[]+!![]+!![]+!![]+!![]+!![])+(!+[]+!![]+!![]+[])+(!+[]+!![])+(!+[]+!![]+!![]+[])+(!+[]+!![]+[]))};
-				t = document.createElement('div');
-				t.innerHTML="<a href='/'>x</a>";
-				t = t.firstChild.href;r = t.match(/https?:\/\//)[0];
-				t = t.substr(r.length); t = t.substr(0,t.length-1);
-				a = document.getElementById('redirect');
-				f = document.getElementById('challenge-form');
-				;p6gdn4Q.eNG8aiA*=+((!+[]+!![]+!![]+!![]+!![]+!![]+[])+(!+[]+!![]+!![]+!![]+!![]+!![]+!![])+(!+[]+!![]+!![]+!![]+!![]+[])+(!+[]+!![]+!![]+!![]+!![]+!![]+!![])+(+!![])+(!+[]+!![]+!![]+!![]+!![]+!![]+!![])+(!+[]+!![]+!![]+!![]+!![]+!![]+!![]+[])+(!+[]+!![]+!![]+!![]+!![]+!![])+(!+[]+!![]+!![]+!![]+!![]))/+((+!![])+(!+[]+!![]+[])+(+[])+(!+[]+!![]+!![]+[])+(!+[]+!![]+!![])+(!+[]+!![]+!![]+!![]+[])+(!+[]+!![])+(!+[]+!![]+!![]+!![]+[])+(!+[]+!![]+!![]+!![]+!![]+!![]+!![]+[]));a.value = +p6gdn4Q.eNG8aiA.toFixed(10); '; 121'
-				f.action += location.hash;
-				f.submit();
-			}, 4000);
-		}, false);
-	})();
-	//]]>
-	</script>
-</head>
-<body>
-
-<div class="divide"></div>
-<div class="outer"><div class="middle"><div class="inner">
-	<div id="title">
-		<h1>game<span>sense</span></h1>
-	</div>
-	<noscript><h1 data-translate="turn_on_js" style="color:#bd2426;">Please turn JavaScript on and reload the page.</h1></noscript>
-	<div id="gs-content" style="display: block;">
-		<p>Please wait...</p>
-		<div class="trifecta">
-			<div class="one"></div>
-			<div class="two"></div>
-			<div class="three"></div>
-		</div>
-		<form id="challenge-form" action="discord.php" method="post">
-			<input type="hidden" id="redirect" name="redirect">
-		</form>
-	</div>
-</div></div></div>
-    
-
-</body></html>
-
-
-<?php } ?>
-
-
-
-
-
-
-<?php
-//require PUN_ROOT.'footer.php';
+	discord_redirect('success');
+}
+catch (Exception $e)
+{
+	discord_redirect('error');
+}

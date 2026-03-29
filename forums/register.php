@@ -165,7 +165,7 @@ if (isset($_POST['form_sent']))
 		$now = time();
 
 		$intial_group_id = ($pun_config['o_regs_verify'] == '0') ? $pun_config['o_default_user_group'] : PUN_UNVERIFIED;
-		$password_hash = pun_hash($password1);
+		$password_hash = forum_password_hash($password1);
 
         $result = $db->query('SELECT * FROM '.$db->prefix.'codes WHERE used=0 AND code=\''.$db->escape($inv1).'\'') or error('Unable to fetch user code', __FILE__, __LINE__, $db->error());
     	if ($db->num_rows($result))

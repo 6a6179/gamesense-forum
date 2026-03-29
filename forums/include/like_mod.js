@@ -14,15 +14,16 @@ $(function () {
 		var _this = $(this);
 		var _pid = get_url_param(_this.attr('href'), 'pid');
 		var _unlike = get_url_param(_this.attr('href'), 'unlike');
+		var _csrf = get_url_param(_this.attr('href'), 'csrf_token');
 		_this.hide();
 		$.ajax({
 			cache: false,
 			type: "GET",
 			url: "like.php",
-			data: { pid: _pid, unlike: _unlike },
+			data: { pid: _pid, unlike: _unlike, csrf_token: _csrf },
 			success: function () {
 				// Toggle href
-				var new_href = 'like.php?pid=' + _pid;
+				var new_href = 'like.php?pid=' + _pid + '&csrf_token=' + _csrf;
 				if (_unlike == '0') {
 					_this.text('Unlike');
 					new_href += '&unlike=1';

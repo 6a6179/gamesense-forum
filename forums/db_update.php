@@ -7,7 +7,7 @@
 // The FluxBB version this script updates to
 define('UPDATE_TO', '1.5.11');
 
-define('UPDATE_TO_DB_REVISION', 21);
+define('UPDATE_TO_DB_REVISION', 22);
 define('UPDATE_TO_SI_REVISION', 2);
 define('UPDATE_TO_PARSER_REVISION', 2);
 
@@ -689,10 +689,14 @@ switch ($stage)
 {
 	// Start by updating the database structure
 	case 'start':
-		$query_str = '?stage=preparse_posts';
+		$query_str = '?stage=security_columns';
 
 		// If we don't need to update the database, skip this stage
 		if (isset($pun_config['o_database_revision']) && $pun_config['o_database_revision'] >= UPDATE_TO_DB_REVISION)
+			break;
+
+		// Databases already on the previous revision only need the security column resize step.
+		if (isset($pun_config['o_database_revision']) && $pun_config['o_database_revision'] >= 21)
 			break;
 
 		// Make all email fields VARCHAR(80)
@@ -1188,6 +1192,15 @@ switch ($stage)
 		break;
 
 
+	case 'security_columns':
+		$query_str = '?stage=preparse_posts';
+
+		$db->alter_field('users', 'password', 'VARCHAR(255)', false, '') or error('Unable to alter password field', __FILE__, __LINE__, $db->error());
+		$db->alter_field('users', 'activate_string', 'VARCHAR(255)', true) or error('Unable to alter activate_string field', __FILE__, __LINE__, $db->error());
+
+		break;
+
+
 	// Convert bans
 	case 'conv_bans':
 		$query_str = '?stage=conv_categories&req_old_charset='.$old_charset;
@@ -1475,7 +1488,7 @@ switch ($stage)
 
 	// Convert users
 	case 'conv_users':
-		$query_str = '?stage=preparse_posts';
+		$query_str = '?stage=security_columns';
 
 		if ($start_at == 0)
 			$_SESSION['dupe_users'] = array();
@@ -1513,7 +1526,7 @@ switch ($stage)
 
 	// Handle any duplicate users which occured due to conversion
 	case 'conv_users_dupe':
-		$query_str = '?stage=preparse_posts';
+		$query_str = '?stage=security_columns';
 
 		if (!$mysql || empty($_SESSION['dupe_users']))
 			break;

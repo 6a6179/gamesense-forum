@@ -331,14 +331,14 @@ while ($cur_post = $db->fetch_assoc($result))
 	if (!$pun_user['is_guest'] && $cur_post['poster_id'] != $pun_user['id']) // Like mod
 	{
 		if (empty($cur_post['likes']))
-			$like_button = '<li class="postlike"><span><a href="like.php?tid='.$id.'&amp;pid='.$cur_post['id'].'" class="like">'.$lang_like_mod['Like'].'</a></span></li>';
+			$like_button = '<li class="postlike"><span><a href="like.php?tid='.$id.'&amp;pid='.$cur_post['id'].'&amp;csrf_token='.pun_csrf_token().'" class="like">'.$lang_like_mod['Like'].'</a></span></li>';
 		else
 		{
 			$likes = unserialize($cur_post['likes']);
 			if (isset($likes[$pun_user['id']]))
-				$like_button = '<li class="postunlike"><span><a href="like.php?tid='.$id.'&amp;pid='.$cur_post['id'].'&amp;unlike=1" class="like">'.$lang_like_mod['Unlike'].'</a></span></li>';
+				$like_button = '<li class="postunlike"><span><a href="like.php?tid='.$id.'&amp;pid='.$cur_post['id'].'&amp;unlike=1&amp;csrf_token='.pun_csrf_token().'" class="like">'.$lang_like_mod['Unlike'].'</a></span></li>';
 			else
-				$like_button = '<li class="postlike"><span><a href="like.php?tid='.$id.'&amp;pid='.$cur_post['id'].'" class="like">'.$lang_like_mod['Like'].'</a></span></li>';
+				$like_button = '<li class="postlike"><span><a href="like.php?tid='.$id.'&amp;pid='.$cur_post['id'].'&amp;csrf_token='.pun_csrf_token().'" class="like">'.$lang_like_mod['Like'].'</a></span></li>';
 		}
 	}
 	else

@@ -163,8 +163,8 @@ function authenticate_user($user, $password, $password_is_hash = false)
 	$result = $db->query('SELECT u.*, g.*, o.logged, o.idle FROM '.$db->prefix.'users AS u INNER JOIN '.$db->prefix.'groups AS g ON g.g_id=u.group_id LEFT JOIN '.$db->prefix.'online AS o ON o.user_id=u.id WHERE '.(is_int($user) ? 'u.id='.intval($user) : 'u.username=\''.$db->escape($user).'\'')) or error('Unable to fetch user info', __FILE__, __LINE__, $db->error());
 	$pun_user = $db->fetch_assoc($result);
 
-	$is_password_authorized = pun_hash_equals($password, $pun_user['password']);
-	$is_hash_authorized = pun_hash_equals(pun_hash($password), $pun_user['password']);
+	$is_password_authorized = ($password_is_hash && isset($pun_user['password']) && pun_hash_equals($password, $pun_user['password']));
+	$is_hash_authorized = (!$password_is_hash && isset($pun_user['password']) && forum_password_verify($password, $pun_user['password'], isset($pun_user['salt']) ? $pun_user['salt'] : null));
 
 	if (!isset($pun_user['id']) ||
 		($password_is_hash && !$is_password_authorized ||
@@ -1153,6 +1153,82 @@ function pun_hash($str)
 
 
 //
+// Detect if a stored password uses PHP's password hashing API
+//
+function forum_password_is_modern_hash($hash)
+{
+	if (!is_string($hash) || $hash === '')
+		return false;
+	if (!function_exists('password_get_info'))
+		return false;
+
+	$hash_info = password_get_info($hash);
+
+	return !empty($hash_info['algo']);
+}
+
+
+//
+// Hash a password with the strongest supported algorithm
+//
+function forum_password_hash($plain)
+{
+	if (!function_exists('password_hash'))
+		error('PHP password hashing support is not available.', __FILE__, __LINE__);
+
+	$algorithm = defined('PASSWORD_ARGON2ID') ? PASSWORD_ARGON2ID : PASSWORD_BCRYPT;
+	$hash = password_hash($plain, $algorithm);
+
+	if ($hash === false)
+		error('Unable to hash password.', __FILE__, __LINE__);
+
+	return $hash;
+}
+
+
+//
+// Verify a password against modern and legacy hashes
+//
+function forum_password_verify($plain, $stored_hash, $salt = null)
+{
+	if (!is_string($stored_hash) || $stored_hash === '')
+		return false;
+
+	if (forum_password_is_modern_hash($stored_hash))
+	{
+		if (!function_exists('password_verify'))
+			return false;
+
+		return password_verify($plain, $stored_hash);
+	}
+
+	if (!empty($salt))
+		return pun_hash_equals(sha1($salt.sha1($plain)), $stored_hash);
+
+	if (strlen($stored_hash) === 32 && ctype_xdigit($stored_hash))
+		return pun_hash_equals(md5($plain), $stored_hash);
+
+	return pun_hash_equals(pun_hash($plain), $stored_hash);
+}
+
+
+//
+// Determine if a stored password should be upgraded
+//
+function forum_password_needs_rehash($stored_hash)
+{
+	if (!forum_password_is_modern_hash($stored_hash))
+		return true;
+	if (!function_exists('password_needs_rehash'))
+		return false;
+
+	$algorithm = defined('PASSWORD_ARGON2ID') ? PASSWORD_ARGON2ID : PASSWORD_BCRYPT;
+
+	return password_needs_rehash($stored_hash, $algorithm);
+}
+
+
+//
 // Compare two strings in constant time
 // Inspired by WordPress
 //
@@ -1205,26 +1281,108 @@ function check_csrf($token)
 
 
 //
+// Validate an IP address
+//
+function forum_is_valid_ip($ip)
+{
+	return ($ip !== null && $ip !== '' && filter_var($ip, FILTER_VALIDATE_IP) !== false);
+}
+
+
+//
+// Check whether an IP matches an allowlist entry
+//
+function forum_ip_matches_rule($ip, $rule)
+{
+	$rule = trim($rule);
+	if ($rule === '')
+		return false;
+
+	if (strpos($rule, '/') === false)
+		return strcasecmp($ip, $rule) === 0;
+
+	list($subnet, $prefix) = explode('/', $rule, 2);
+	if ($prefix === '' || !ctype_digit($prefix))
+		return false;
+
+	$ip_bin = @inet_pton($ip);
+	$subnet_bin = @inet_pton($subnet);
+
+	if ($ip_bin === false || $subnet_bin === false || strlen($ip_bin) !== strlen($subnet_bin))
+		return false;
+
+	$prefix = intval($prefix);
+	$max_bits = strlen($ip_bin) * 8;
+
+	if ($prefix < 0 || $prefix > $max_bits)
+		return false;
+
+	$full_bytes = intval(floor($prefix / 8));
+	$remaining_bits = $prefix % 8;
+
+	if ($full_bytes > 0 && substr($ip_bin, 0, $full_bytes) !== substr($subnet_bin, 0, $full_bytes))
+		return false;
+
+	if ($remaining_bits === 0)
+		return true;
+
+	$mask = (~(255 >> $remaining_bits)) & 255;
+
+	return (ord($ip_bin[$full_bytes]) & $mask) === (ord($subnet_bin[$full_bytes]) & $mask);
+}
+
+
+//
+// Check whether the current peer is a trusted proxy
+//
+function forum_is_trusted_proxy($remote_addr)
+{
+	if (!forum_is_valid_ip($remote_addr) || !defined('FORUM_TRUSTED_PROXIES'))
+		return false;
+
+	$trusted_proxies = FORUM_TRUSTED_PROXIES;
+	if (!is_array($trusted_proxies))
+		$trusted_proxies = preg_split('%\s*,\s*%', (string) $trusted_proxies, -1, PREG_SPLIT_NO_EMPTY);
+
+	foreach ($trusted_proxies as $trusted_proxy)
+	{
+		if (forum_ip_matches_rule($remote_addr, $trusted_proxy))
+			return true;
+	}
+
+	return false;
+}
+
+
+//
 // Try to determine the correct remote IP-address
 //
 function get_remote_address()
 {
-	$remote_addr = $_SERVER["HTTP_CF_CONNECTING_IP"];
+	$remote_addr = isset($_SERVER['REMOTE_ADDR']) ? trim($_SERVER['REMOTE_ADDR']) : '';
 
-	// If we are behind a reverse proxy try to find the real users IP
-	if (defined('FORUM_BEHIND_REVERSE_PROXY'))
+	if (!forum_is_valid_ip($remote_addr))
+		$remote_addr = '0.0.0.0';
+
+	if (forum_is_trusted_proxy($remote_addr))
 	{
-		if (isset($_SERVER['HTTP_X_FORWARDED_FOR']))
+		if (!empty($_SERVER['HTTP_CF_CONNECTING_IP']))
 		{
-			// The general format of the field is:
-			// X-Forwarded-For: client1, proxy1, proxy2
-			// where the value is a comma+space separated list of IP addresses, the left-most being the farthest downstream client,
-			// and each successive proxy that passed the request adding the IP address where it received the request from.
-			$forwarded_for = explode(',', $_SERVER['HTTP_X_FORWARDED_FOR']);
-			$forwarded_for = trim($forwarded_for[0]);
+			$forwarded_for = trim($_SERVER['HTTP_CF_CONNECTING_IP']);
 
-			if (@preg_match('%^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$%', $forwarded_for) || @preg_match('%^((([0-9A-Fa-f]{1,4}:){7}[0-9A-Fa-f]{1,4})|(([0-9A-Fa-f]{1,4}:){6}:[0-9A-Fa-f]{1,4})|(([0-9A-Fa-f]{1,4}:){5}:([0-9A-Fa-f]{1,4}:)?[0-9A-Fa-f]{1,4})|(([0-9A-Fa-f]{1,4}:){4}:([0-9A-Fa-f]{1,4}:){0,2}[0-9A-Fa-f]{1,4})|(([0-9A-Fa-f]{1,4}:){3}:([0-9A-Fa-f]{1,4}:){0,3}[0-9A-Fa-f]{1,4})|(([0-9A-Fa-f]{1,4}:){2}:([0-9A-Fa-f]{1,4}:){0,4}[0-9A-Fa-f]{1,4})|(([0-9A-Fa-f]{1,4}:){6}((\b((25[0-5])|(1\d{2})|(2[0-4]\d)|(\d{1,2}))\b)\.){3}(\b((25[0-5])|(1\d{2})|(2[0-4]\d)|(\d{1,2}))\b))|(([0-9A-Fa-f]{1,4}:){0,5}:((\b((25[0-5])|(1\d{2})|(2[0-4]\d)|(\d{1,2}))\b)\.){3}(\b((25[0-5])|(1\d{2})|(2[0-4]\d)|(\d{1,2}))\b))|(::([0-9A-Fa-f]{1,4}:){0,5}((\b((25[0-5])|(1\d{2})|(2[0-4]\d)|(\d{1,2}))\b)\.){3}(\b((25[0-5])|(1\d{2})|(2[0-4]\d)|(\d{1,2}))\b))|([0-9A-Fa-f]{1,4}::([0-9A-Fa-f]{1,4}:){0,5}[0-9A-Fa-f]{1,4})|(::([0-9A-Fa-f]{1,4}:){0,6}[0-9A-Fa-f]{1,4})|(([0-9A-Fa-f]{1,4}:){1,7}:))$%', $forwarded_for))
-				$remote_addr = $forwarded_for;
+			if (forum_is_valid_ip($forwarded_for))
+				return $forwarded_for;
+		}
+
+		if (!empty($_SERVER['HTTP_X_FORWARDED_FOR']))
+		{
+			foreach (explode(',', $_SERVER['HTTP_X_FORWARDED_FOR']) as $forwarded_for)
+			{
+				$forwarded_for = trim($forwarded_for);
+
+				if (forum_is_valid_ip($forwarded_for))
+					return $forwarded_for;
+			}
 		}
 	}
 
