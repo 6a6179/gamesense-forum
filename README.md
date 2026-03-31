@@ -1,11 +1,13 @@
 # gamesense-forum
+# please do not scam with this, i made all the payments free
 
-FluxBB-derived GameSense forum with:
+<img width="2166" height="1572" alt="image" src="https://github.com/user-attachments/assets/780b5844-070b-4e95-81b0-d9d6fd5b902b" />
 
-- invite/bootstrap registration flow
-- integrated AJAX Chat shoutbox on the forum index
-- local Docker setup for development
-- seeded SQL dump for fresh installs
+Stuff i added:
+
+- shoutbox (i tried my best)
+
+enjoy chatgpt installation instructions.
 
 ## Fresh install behavior
 
