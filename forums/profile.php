@@ -901,7 +901,7 @@ $user444444444 = $db->fetch_assoc($result444444444);
 			if(isset($_POST['form']['2fa'])){
 			
 			
-			if(pun_trim($_POST['form']['2fa']) == $ga->getCode($user444444444['ga'])){
+			if($ga->checkCode($user444444444['ga'], pun_trim($_POST['form']['2fa']))){
 $db->query('UPDATE gs_users SET ga_enabled=1 WHERE id='.$id) or error('Unable to update user info', __FILE__, __LINE__, $db->error());
 			 redirect('profile.php?section='.$section.'&amp;id='.$id, "2fa was enabled successfully!");
 			} else {
@@ -2037,16 +2037,11 @@ else
 					<div class="infldset">
 					<?php if($user['ga'] != null && $user['ga_enabled'] == 1){ ?>
 						<p>Status: <strong>Active</strong></p>
-						<p>Recovery code: <?php echo $user['ga'] ?></p>
+						<p>The 2FA setup key is hidden after activation. Disable and re-enable 2FA if you need to enroll a new authenticator.</p>
 						<p><input type="submit" class="button" name="deactivate" id="deactivate" value="Disable 2FA" onclick="return confirm('Are you sure you want to do that?');"></p>
 					<?php } elseif($user['ga'] != null && $user['ga_enabled'] == 0) { ?>
 					<?php
-						$otpauth_url = sprintf(
-							'otpauth://totp/%s?secret=%s&issuer=%s',
-							rawurlencode('GameSense:'.$user['username']),
-							rawurlencode($user['ga']),
-							rawurlencode('GameSense')
-						);
+						$otpauth_url = $ga->getUrl($user['username'], 'GameSense', $user['ga']);
 					?>
 						<div id="ga-qr" style="float:right;padding-right:10px;padding-bottom:10px;"></div>
 						<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" type="text/javascript"></script>
@@ -2069,6 +2064,7 @@ else
 						/* ]]> */
 						</script>
 						<p>Status: <strong>Confirmation</strong></p>
+						<p>New 2FA secrets are generated with higher entropy than before.</p>
 						<p>Setup key: <code><?php echo pun_htmlspecialchars($user['ga']); ?></code></p>
 						<label>Code<br /><input id="code" type="text" name="form[2fa]" size="20" maxlength="75" /> <input type="submit" name="update" value="<?php echo $lang_common['Submit'] ?>" /><br /></label>
 						<p>Refresh this page if code not valid.</p>

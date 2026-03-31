@@ -18,7 +18,7 @@ include_once("FixedByteNotation.php");
 class GoogleAuthenticator {
     static $PASS_CODE_LENGTH = 6;
     static $PIN_MODULO;
-    static $SECRET_LENGTH = 10;
+    static $SECRET_LENGTH = 20;
     
     public function __construct() {
         self::$PIN_MODULO = pow(10, self::$PASS_CODE_LENGTH);
