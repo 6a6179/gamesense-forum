@@ -275,9 +275,3 @@ docker compose down
 docker compose down -v
 docker compose up -d
 ```
-
-## Notes
-
-- `forums/config.php` reads database and cookie settings from environment variables.
-- The shoutbox is already integrated and lives under `forums/chat/`.
-- If you change the board URL or move the install, clear generated cache files in `forums/cache/cache_*.php`.
