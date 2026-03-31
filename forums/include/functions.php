@@ -1188,6 +1188,208 @@ function forum_login_throttle_clear_user($username)
 
 
 //
+// Decode per-user metadata stored in img_key
+//
+function forum_user_metadata_decode($raw_metadata)
+{
+	if (!is_string($raw_metadata) || $raw_metadata === '')
+		return array();
+
+	$metadata = json_decode($raw_metadata, true);
+
+	return is_array($metadata) ? $metadata : array();
+}
+
+
+//
+// Encode per-user metadata stored in img_key
+//
+function forum_user_metadata_encode($metadata)
+{
+	$metadata = array_filter((array) $metadata, function ($value) {
+		return $value !== null && $value !== '' && $value !== array();
+	});
+
+	return empty($metadata) ? null : json_encode($metadata);
+}
+
+
+//
+// Normalize a 2FA recovery code for storage and comparison
+//
+function forum_two_factor_normalize_recovery_code($code)
+{
+	$code = strtoupper(preg_replace('%[^A-Z0-9]%i', '', (string) $code));
+
+	return $code;
+}
+
+
+//
+// Format a recovery code into readable 4-character groups
+//
+function forum_two_factor_format_recovery_code($code)
+{
+	$code = forum_two_factor_normalize_recovery_code($code);
+
+	return trim(chunk_split($code, 4, '-'), '-');
+}
+
+
+//
+// Generate one readable 2FA recovery code
+//
+function forum_two_factor_generate_recovery_code()
+{
+	$alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+	$bytes = random_key(12);
+	$code = '';
+
+	for ($i = 0; $i < 12; ++$i)
+		$code .= substr($alphabet, ord($bytes[$i]) % strlen($alphabet), 1);
+
+	return forum_two_factor_format_recovery_code($code);
+}
+
+
+//
+// Generate a set of one-time recovery codes for 2FA
+//
+function forum_two_factor_generate_recovery_codes($count = 9)
+{
+	$codes = array();
+
+	while (count($codes) < $count)
+	{
+		$recovery_code = forum_two_factor_generate_recovery_code();
+		$codes[$recovery_code] = $recovery_code;
+	}
+
+	return array_values($codes);
+}
+
+
+//
+// Read pending recovery codes for a user
+//
+function forum_two_factor_get_pending_recovery_codes($raw_metadata)
+{
+	$metadata = forum_user_metadata_decode($raw_metadata);
+
+	return (isset($metadata['two_factor_recovery_codes_pending']) && is_array($metadata['two_factor_recovery_codes_pending']))
+		? array_values($metadata['two_factor_recovery_codes_pending'])
+		: array();
+}
+
+
+//
+// Read hashed recovery codes for a user
+//
+function forum_two_factor_get_recovery_code_hashes($raw_metadata)
+{
+	$metadata = forum_user_metadata_decode($raw_metadata);
+
+	return (isset($metadata['two_factor_recovery_codes']) && is_array($metadata['two_factor_recovery_codes']))
+		? array_values($metadata['two_factor_recovery_codes'])
+		: array();
+}
+
+
+//
+// Store pending/plain and active/hashed recovery codes in user metadata
+//
+function forum_two_factor_set_recovery_codes($raw_metadata, $pending_codes = array(), $hashed_codes = array())
+{
+	$metadata = forum_user_metadata_decode($raw_metadata);
+
+	if (!empty($pending_codes))
+		$metadata['two_factor_recovery_codes_pending'] = array_values($pending_codes);
+	else
+		unset($metadata['two_factor_recovery_codes_pending']);
+
+	if (!empty($hashed_codes))
+		$metadata['two_factor_recovery_codes'] = array_values($hashed_codes);
+	else
+		unset($metadata['two_factor_recovery_codes']);
+
+	return forum_user_metadata_encode($metadata);
+}
+
+
+//
+// Prepare a new set of pending recovery codes for 2FA setup
+//
+function forum_two_factor_prepare_pending_recovery_codes($raw_metadata, $count = 9)
+{
+	$codes = forum_two_factor_generate_recovery_codes($count);
+
+	return array(
+		'codes' => $codes,
+		'metadata' => forum_two_factor_set_recovery_codes($raw_metadata, $codes, array()),
+	);
+}
+
+
+//
+// Promote pending recovery codes to hashed active recovery codes
+//
+function forum_two_factor_activate_recovery_codes($raw_metadata)
+{
+	$pending_codes = forum_two_factor_get_pending_recovery_codes($raw_metadata);
+	if (empty($pending_codes))
+		return array(
+			'codes' => array(),
+			'metadata' => $raw_metadata,
+		);
+
+	$hashed_codes = array();
+	foreach ($pending_codes as $pending_code)
+		$hashed_codes[] = forum_password_hash(forum_two_factor_normalize_recovery_code($pending_code));
+
+	return array(
+		'codes' => $pending_codes,
+		'metadata' => forum_two_factor_set_recovery_codes($raw_metadata, array(), $hashed_codes),
+	);
+}
+
+
+//
+// Consume one recovery code if it matches an active hashed code
+//
+function forum_two_factor_consume_recovery_code($raw_metadata, $submitted_code)
+{
+	$normalized_code = forum_two_factor_normalize_recovery_code($submitted_code);
+	if (strlen($normalized_code) < 12)
+		return false;
+
+	$hashed_codes = forum_two_factor_get_recovery_code_hashes($raw_metadata);
+	if (empty($hashed_codes))
+		return false;
+
+	foreach ($hashed_codes as $index => $hashed_code)
+	{
+		if (forum_password_verify($normalized_code, $hashed_code))
+		{
+			unset($hashed_codes[$index]);
+
+			return forum_two_factor_set_recovery_codes($raw_metadata, array(), array_values($hashed_codes));
+		}
+	}
+
+	return false;
+}
+
+
+//
+// Count how many active hashed recovery codes remain for a user
+//
+function forum_two_factor_recovery_code_count($raw_metadata)
+{
+	return count(forum_two_factor_get_recovery_code_hashes($raw_metadata));
+}
+
+
+//
 // Generate a string with numbered links (for multipage scripts)
 //
 function paginate($num_pages, $cur_page, $link)

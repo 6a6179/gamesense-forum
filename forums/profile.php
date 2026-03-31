@@ -15,6 +15,7 @@ require PUN_ROOT.'include/utf8/ucwords.php'; // utf8_ucwords needs utf8_substr_r
 require PUN_ROOT.'include/utf8/strcasecmp.php';
 require_once('GoogleAuthenticator.php');
 $ga=new GoogleAuthenticator;
+$generated_recovery_codes = array();
 $action = isset($_GET['action']) ? $_GET['action'] : null;
 $section = isset($_GET['section']) ? $_GET['section'] : null;
 $id = isset($_GET['id']) ? intval($_GET['id']) : 0;
@@ -892,7 +893,7 @@ else if (isset($_POST['form_sent']))
 		case '2fa':
 		{
 			
-			$result444444444 = $db->query('SELECT ga,ga_enabled,username,id FROM gs_users WHERE id='.$id) or error('Unable to fetch user info', __FILE__, __LINE__, $db->error());
+			$result444444444 = $db->query('SELECT ga,ga_enabled,username,id,img_key FROM gs_users WHERE id='.$id) or error('Unable to fetch user info', __FILE__, __LINE__, $db->error());
 if (!$db->num_rows($result444444444))
 	message($lang_common['Bad request']);
 
@@ -902,7 +903,8 @@ $user444444444 = $db->fetch_assoc($result444444444);
 			
 			
 			if($ga->checkCode($user444444444['ga'], pun_trim($_POST['form']['2fa']))){
-$db->query('UPDATE gs_users SET ga_enabled=1 WHERE id='.$id) or error('Unable to update user info', __FILE__, __LINE__, $db->error());
+			$recovery_activation = forum_two_factor_activate_recovery_codes(isset($user444444444['img_key']) ? $user444444444['img_key'] : null);
+			$db->query('UPDATE gs_users SET ga_enabled=1, img_key='.(($recovery_activation['metadata'] !== null) ? '\''.$db->escape($recovery_activation['metadata']).'\'' : 'NULL').' WHERE id='.$id) or error('Unable to update user info', __FILE__, __LINE__, $db->error());
 			 redirect('profile.php?section='.$section.'&amp;id='.$id, "2fa was enabled successfully!");
 			} else {
 				
@@ -910,11 +912,21 @@ $db->query('UPDATE gs_users SET ga_enabled=1 WHERE id='.$id) or error('Unable to
 			}
 			
 			}elseif(isset($_POST['deactivate'])){
+				$cleared_two_factor_metadata = forum_two_factor_set_recovery_codes(isset($user444444444['img_key']) ? $user444444444['img_key'] : null, array(), array());
 				
 				$db->query('UPDATE gs_users SET ga_enabled=0 WHERE id='.$id) or error('Unable to update user info', __FILE__, __LINE__, $db->error());
-				$db->query('UPDATE gs_users SET ga=NULL WHERE id='.$id) or error('Unable to update user info', __FILE__, __LINE__, $db->error());
+				$db->query('UPDATE gs_users SET ga=NULL, img_key='.(($cleared_two_factor_metadata !== null) ? '\''.$db->escape($cleared_two_factor_metadata).'\'' : 'NULL').' WHERE id='.$id) or error('Unable to update user info', __FILE__, __LINE__, $db->error());
 				
 				 redirect('profile.php?section='.$section.'&amp;id='.$id, "2fa was disabled successfully!");
+			}
+			elseif(isset($_POST['generate_recovery_codes']) && $user444444444['ga'] != null && $user444444444['ga_enabled'] == '1'){
+				$generated_recovery_codes = forum_two_factor_generate_recovery_codes();
+				$hashed_recovery_codes = array();
+				foreach ($generated_recovery_codes as $generated_recovery_code)
+					$hashed_recovery_codes[] = forum_password_hash(forum_two_factor_normalize_recovery_code($generated_recovery_code));
+
+				$updated_two_factor_metadata = forum_two_factor_set_recovery_codes(isset($user444444444['img_key']) ? $user444444444['img_key'] : null, array(), $hashed_recovery_codes);
+				$db->query('UPDATE gs_users SET img_key='.(($updated_two_factor_metadata !== null) ? '\''.$db->escape($updated_two_factor_metadata).'\'' : 'NULL').' WHERE id='.$id) or error('Unable to update user info', __FILE__, __LINE__, $db->error());
 			}
 			elseif(isset($_POST['activate'])){
 				
@@ -922,12 +934,13 @@ $db->query('UPDATE gs_users SET ga_enabled=1 WHERE id='.$id) or error('Unable to
 $ga_secret =$ga->generateSecret();
 $mydearuser = $user444444444['id'];
 
-$myresult = $db->query("SELECT `ga`,`username` FROM `gs_users` WHERE `id` = '$mydearuser'") or error('Unable to find user', __FILE__, __LINE__, $db->error());
+$myresult = $db->query("SELECT `ga`,`username`,`img_key` FROM `gs_users` WHERE `id` = '$mydearuser'") or error('Unable to find user', __FILE__, __LINE__, $db->error());
 if ($db->num_rows($myresult)){
 	$myresult = $db->fetch_assoc($myresult);   
 	if($myresult['ga'] == null){
-		
-		$db->query("UPDATE `gs_users` SET `ga` = '$ga_secret' WHERE `id` = '$mydearuser'") or error('Unable to update user', __FILE__, __LINE__, $db->error());
+		$recovery_setup = forum_two_factor_prepare_pending_recovery_codes(isset($myresult['img_key']) ? $myresult['img_key'] : null);
+		$recovery_metadata = $recovery_setup['metadata'];
+		$db->query("UPDATE `gs_users` SET `ga` = '$ga_secret', `img_key` = ".(($recovery_metadata !== null) ? '\''.$db->escape($recovery_metadata).'\'' : 'NULL')." WHERE `id` = '$mydearuser'") or error('Unable to update user', __FILE__, __LINE__, $db->error());
 		 redirect('profile.php?section='.$section.'&amp;id='.$id, "Redirecting...");
 	}
 }
@@ -1505,7 +1518,7 @@ exit();
 flux_hook('profile_after_form_handling');
 
 
-$result = $db->query('SELECT u.username, u.email, u.id, g.g_pm, u.ga, u.ga_enabled, u.messages_enable, u.group_id, u.csgo, u.discord_reason, u.hwid_reason, u.title, u.realname, u.url, u.jabber, u.icq, u.msn, u.aim, u.yahoo, u.location, u.signature, u.disp_topics, u.disp_posts, u.email_setting, u.notify_with_post, u.auto_notify, u.show_smilies, u.show_img, u.show_img_sig, u.show_avatars, u.show_sig, u.timezone, u.dst, u.language, u.style, u.num_posts, u.last_post, u.registered, u.registration_ip, u.admin_note, u.date_format, u.time_format, u.last_visit, g.g_id, g.g_user_title, u.messages_enable, g.g_moderator FROM '.$db->prefix.'users AS u LEFT JOIN '.$db->prefix.'groups AS g ON g.g_id=u.group_id WHERE u.id='.$id) or error('Unable to fetch user info', __FILE__, __LINE__, $db->error());
+$result = $db->query('SELECT u.username, u.email, u.id, g.g_pm, u.ga, u.ga_enabled, u.img_key, u.messages_enable, u.group_id, u.csgo, u.discord_reason, u.hwid_reason, u.title, u.realname, u.url, u.jabber, u.icq, u.msn, u.aim, u.yahoo, u.location, u.signature, u.disp_topics, u.disp_posts, u.email_setting, u.notify_with_post, u.auto_notify, u.show_smilies, u.show_img, u.show_img_sig, u.show_avatars, u.show_sig, u.timezone, u.dst, u.language, u.style, u.num_posts, u.last_post, u.registered, u.registration_ip, u.admin_note, u.date_format, u.time_format, u.last_visit, g.g_id, g.g_user_title, u.messages_enable, g.g_moderator FROM '.$db->prefix.'users AS u LEFT JOIN '.$db->prefix.'groups AS g ON g.g_id=u.group_id WHERE u.id='.$id) or error('Unable to fetch user info', __FILE__, __LINE__, $db->error());
 if (!$db->num_rows($result))
 	message($lang_common['Bad request'], false, '404 Not Found');
 
@@ -2023,6 +2036,17 @@ else
 
 		generate_profile_menu('2fa');
 
+		$pending_recovery_codes = forum_two_factor_get_pending_recovery_codes(isset($user['img_key']) ? $user['img_key'] : null);
+		if ($user['ga'] != null && $user['ga_enabled'] == 0 && empty($pending_recovery_codes))
+		{
+			$recovery_setup = forum_two_factor_prepare_pending_recovery_codes(isset($user['img_key']) ? $user['img_key'] : null);
+			$pending_recovery_codes = $recovery_setup['codes'];
+			$user['img_key'] = $recovery_setup['metadata'];
+			$db->query('UPDATE '.$db->prefix.'users SET img_key='.(($user['img_key'] !== null) ? '\''.$db->escape($user['img_key']).'\'' : 'NULL').' WHERE id='.$user['id']) or error('Unable to update user info', __FILE__, __LINE__, $db->error());
+		}
+
+		$active_recovery_code_count = forum_two_factor_recovery_code_count(isset($user['img_key']) ? $user['img_key'] : null);
+
 ?>
 	<div class="blockform">
 		<h2><span><?php echo pun_htmlspecialchars($user['username']).' - Authentication' ?></span></h2>
@@ -2035,15 +2059,140 @@ else
 				<fieldset>
 					<legend>Two factor authentication</legend>
 					<div class="infldset">
+						<style type="text/css">
+						#profile1 .twofa-layout {
+							display: flex;
+							flex-wrap: wrap;
+							align-items: flex-start;
+							gap: 18px;
+						}
+
+						#profile1 .twofa-main {
+							flex: 1 1 360px;
+							min-width: 0;
+						}
+
+						#profile1 .twofa-qr-wrap {
+							flex: 0 0 284px;
+							margin-left: auto;
+						}
+
+						#profile1 .twofa-qr-box {
+							display: inline-block;
+							background: #272726;
+							border-radius: 4px;
+							padding: 14px;
+						}
+
+						#profile1 .twofa-code-list {
+							display: grid;
+							grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+							gap: 8px;
+							max-width: 520px;
+							margin: 6px 0 10px 0;
+						}
+
+						#profile1 .twofa-code-list code,
+						#profile1 .twofa-setup-key code {
+							display: block;
+							padding: 6px 8px;
+							background: #212120;
+							border: 1px solid #3e3e3d;
+							color: #d4d4d3;
+						}
+
+						#profile1 .twofa-setup-key code {
+							max-width: 520px;
+							word-break: break-all;
+						}
+
+						#profile1 .twofa-note {
+							color: #a19e96;
+						}
+
+						#profile1 .twofa-form-row {
+							display: flex;
+							flex-wrap: wrap;
+							align-items: flex-end;
+							gap: 8px;
+							max-width: 420px;
+							margin-top: 8px;
+						}
+
+						#profile1 .twofa-form-row label {
+							flex: 1 1 180px;
+						}
+
+						#profile1 .twofa-form-row input[type="text"] {
+							width: 100%;
+							box-sizing: border-box;
+						}
+
+						#profile1 .twofa-actions {
+							margin-top: 10px;
+						}
+
+						#profile1 .twofa-actions .button {
+							margin-right: 8px;
+							margin-bottom: 8px;
+						}
+
+						@media only screen and (max-width: 900px) {
+							#profile1 .twofa-layout {
+								display: block;
+							}
+
+							#profile1 .twofa-qr-wrap {
+								margin: 0 0 14px 0;
+							}
+						}
+						</style>
 					<?php if($user['ga'] != null && $user['ga_enabled'] == 1){ ?>
-						<p>Status: <strong>Active</strong></p>
-						<p>The 2FA setup key is hidden after activation. Disable and re-enable 2FA if you need to enroll a new authenticator.</p>
-						<p><input type="submit" class="button" name="deactivate" id="deactivate" value="Disable 2FA" onclick="return confirm('Are you sure you want to do that?');"></p>
+						<p><strong>Status:</strong> Active</p>
+						<p><strong>Recovery codes remaining:</strong> <?php echo $active_recovery_code_count; ?></p>
+						<p class="twofa-note">Enter one of your saved recovery codes in the same 2FA input on login if you lose access to your authenticator.</p>
+						<?php if (!empty($generated_recovery_codes)): ?>
+						<p><strong>New recovery codes</strong></p>
+						<div class="twofa-code-list">
+						<?php foreach ($generated_recovery_codes as $generated_recovery_code): ?>
+							<code><?php echo pun_htmlspecialchars($generated_recovery_code); ?></code>
+						<?php endforeach; ?>
+						</div>
+						<p class="twofa-note">Save these now. They are only shown once.</p>
+						<?php endif; ?>
+						<p class="twofa-note">The 2FA setup key is hidden after activation. Disable and re-enable 2FA if you need to enroll a new authenticator.</p>
+						<div class="twofa-actions">
+							<input type="submit" class="button" name="generate_recovery_codes" id="generate_recovery_codes" value="Generate new recovery codes" onclick="return confirm('Generate a new set of recovery codes? This will replace any existing ones.');" />
+							<input type="submit" class="button" name="deactivate" id="deactivate" value="Disable 2FA" onclick="return confirm('Are you sure you want to do that?');" />
+						</div>
 					<?php } elseif($user['ga'] != null && $user['ga_enabled'] == 0) { ?>
 					<?php
-						$otpauth_url = $ga->getUrl($user['username'], 'GameSense', $user['ga']);
+						$normalized_ga_secret = $ga->normalizeSecret($user['ga']);
+						$otpauth_url = $ga->getUrl($user['username'], 'GameSense', $normalized_ga_secret);
 					?>
-						<div id="ga-qr" style="float:right;padding-right:10px;padding-bottom:10px;"></div>
+						<div class="twofa-layout">
+							<div class="twofa-main">
+								<p><strong>Status:</strong> Confirmation</p>
+								<p class="twofa-note">Scan the QR code with Google Authenticator or enter the setup key manually before submitting your first 6-digit code.</p>
+								<p><strong>Setup key</strong></p>
+								<p class="twofa-setup-key"><code><?php echo pun_htmlspecialchars($normalized_ga_secret); ?></code></p>
+								<p><strong>Recovery codes</strong></p>
+								<div class="twofa-code-list">
+								<?php foreach ($pending_recovery_codes as $recovery_code): ?>
+									<code><?php echo pun_htmlspecialchars($recovery_code); ?></code>
+								<?php endforeach; ?>
+								</div>
+								<p class="twofa-note">Save these recovery codes too. Each code can be used once in the same 2FA field on the login page.</p>
+								<div class="twofa-form-row">
+									<label for="code">Authenticator code<br /><input id="code" type="text" name="form[2fa]" size="20" maxlength="75" /></label>
+									<input type="submit" name="update" value="<?php echo $lang_common['Submit'] ?>" />
+								</div>
+								<p class="twofa-note">If the code does not validate, refresh this page and scan the newly rendered QR.</p>
+							</div>
+							<div class="twofa-qr-wrap">
+								<div id="ga-qr" class="twofa-qr-box"></div>
+							</div>
+						</div>
 						<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" type="text/javascript"></script>
 						<script type="text/javascript">
 						/* <![CDATA[ */
@@ -2054,8 +2203,8 @@ else
 
 							new QRCode(qrRoot, {
 								text: <?php echo json_encode($otpauth_url); ?>,
-								width: 180,
-								height: 180,
+								width: 256,
+								height: 256,
 								colorDark: '#d4d4d3',
 								colorLight: '#272726',
 								correctLevel: QRCode.CorrectLevel.M
@@ -2063,17 +2212,12 @@ else
 						})();
 						/* ]]> */
 						</script>
-						<p>Status: <strong>Confirmation</strong></p>
-						<p>New 2FA secrets are generated with higher entropy than before.</p>
-						<p>Setup key: <code><?php echo pun_htmlspecialchars($user['ga']); ?></code></p>
-						<label>Code<br /><input id="code" type="text" name="form[2fa]" size="20" maxlength="75" /> <input type="submit" name="update" value="<?php echo $lang_common['Submit'] ?>" /><br /></label>
-						<p>Refresh this page if code not valid.</p>
 						<?php	} else {
 					?>	
 					
-						<p>Status: <strong>Inactive</strong></p>
+						<p><strong>Status:</strong> Inactive</p>
 			
-
+	<p class="twofa-note">Enable 2FA to protect your account with an authenticator app and one-time recovery codes.</p>
 	<p><input type="submit" class="button" name="activate" id="activate" value="Enable 2FA" onclick="return confirm('Are you sure you want to do that?');"></p>
 
 	

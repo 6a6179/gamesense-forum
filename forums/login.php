@@ -35,6 +35,8 @@ if (isset($_POST['form_sent']) && $action == 'in')
 	$updated_password_hash = '';
 	$cur_user = array();
 	$should_record_login_failure = false;
+	$should_update_two_factor_metadata = false;
+	$updated_two_factor_metadata = null;
 
 	$retry_after = forum_login_throttle_retry_after($remote_addr, $form_username);
 	if ($retry_after > 0)
@@ -67,7 +69,21 @@ if (isset($_POST['form_sent']) && $action == 'in')
 		if ($authorized && !empty($cur_user['ga']) && $cur_user['ga_enabled'] == '1')
 		{
 			$ga = new GoogleAuthenticator;
-			if ($submitted_2fa === '' || !$ga->checkCode($cur_user['ga'], $submitted_2fa))
+			$is_two_factor_authorized = ($submitted_2fa !== '' && $ga->checkCode($cur_user['ga'], $submitted_2fa));
+
+			if (!$is_two_factor_authorized && $submitted_2fa !== '')
+			{
+				$consumed_metadata = forum_two_factor_consume_recovery_code(isset($cur_user['img_key']) ? $cur_user['img_key'] : null, $submitted_2fa);
+				if ($consumed_metadata !== false)
+				{
+					$is_two_factor_authorized = true;
+					$should_update_two_factor_metadata = true;
+					$updated_two_factor_metadata = $consumed_metadata;
+					$cur_user['img_key'] = $consumed_metadata;
+				}
+			}
+
+			if (!$is_two_factor_authorized)
 			{
 				$errors[] = 'Invalid two factor authentication code.';
 				$should_record_login_failure = true;
@@ -91,6 +107,9 @@ if (isset($_POST['form_sent']) && $action == 'in')
 			if (array_key_exists('salt', $cur_user))
 				$cur_user['salt'] = null;
 		}
+
+		if ($should_update_two_factor_metadata)
+			$db->query('UPDATE '.$db->prefix.'users SET img_key='.(($updated_two_factor_metadata !== null) ? '\''.$db->escape($updated_two_factor_metadata).'\'' : 'NULL').' WHERE id='.$cur_user['id']) or error('Unable to update two factor recovery code state', __FILE__, __LINE__, $db->error());
 
 		// Update the status if this is the first time the user logged in
 		if ($cur_user['group_id'] == PUN_UNVERIFIED)

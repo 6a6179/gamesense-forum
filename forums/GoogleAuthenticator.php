@@ -18,7 +18,7 @@ include_once("FixedByteNotation.php");
 class GoogleAuthenticator {
     static $PASS_CODE_LENGTH = 6;
     static $PIN_MODULO;
-    static $SECRET_LENGTH = 20;
+    static $SECRET_LENGTH = 32;
     
     public function __construct() {
         self::$PIN_MODULO = pow(10, self::$PASS_CODE_LENGTH);
@@ -38,6 +38,7 @@ class GoogleAuthenticator {
     }
     
     public function getCode($secret,$time = null) {
+        $secret = $this->normalizeSecret($secret);
         
         if (!$time) {
             $time = floor(time() / 30);
@@ -56,6 +57,11 @@ class GoogleAuthenticator {
         $pinValue = str_pad($truncatedHash % self::$PIN_MODULO,6,"0",STR_PAD_LEFT);;
         return $pinValue;
     }
+
+    public function normalizeSecret($secret) {
+        $secret = strtoupper(trim((string) $secret));
+        return preg_replace('/[^A-Z2-7]/', '', $secret);
+    }
     
     protected  function hashToInt($bytes, $start) {
         $input = substr($bytes, $start, strlen($bytes) - $start);
@@ -64,22 +70,29 @@ class GoogleAuthenticator {
     }
     
     public function getUrl($user, $hostname, $secret) {
-        $label = rawurlencode($hostname.':'.$user);
-        $issuer = rawurlencode($hostname);
-        $secret = rawurlencode($secret);
+        $issuer = trim((string) $hostname);
+        $account = trim((string) $user);
+        $secret = $this->normalizeSecret($secret);
+        $label = rawurlencode($account);
 
-        return sprintf('otpauth://totp/%s?secret=%s&issuer=%s', $label, $secret, $issuer);
+        if ($issuer !== '') {
+            $label = rawurlencode($issuer).':'.rawurlencode($account);
+        }
+
+        return 'otpauth://totp/'.$label.'?'.http_build_query(array(
+            'secret' => $secret,
+            'issuer' => $issuer,
+            'algorithm' => 'SHA1',
+            'digits' => self::$PASS_CODE_LENGTH,
+            'period' => 30,
+        ), '', '&', PHP_QUERY_RFC3986);
         
     }
     
     public function generateSecret() {
-        $secret = "";
-        for($i = 1;  $i<= self::$SECRET_LENGTH;$i++) {
-            $c = random_int(0,255);
-            $secret .= pack("c",$c);
-        }
+        $secret = random_bytes(self::$SECRET_LENGTH);
         $base32 = new FixedBitNotation(5, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567', TRUE, TRUE);
-        return  $base32->encode($secret);
+        return $this->normalizeSecret($base32->encode($secret));
         
         
     }
