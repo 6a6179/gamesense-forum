@@ -1,5 +1,5 @@
 # gamesense-forum
-# please do not scam with this, i made all the payments free
+# please do not scam with this
 
 <img width="2166" height="1572" alt="image" src="https://github.com/user-attachments/assets/780b5844-070b-4e95-81b0-d9d6fd5b902b" />
 
