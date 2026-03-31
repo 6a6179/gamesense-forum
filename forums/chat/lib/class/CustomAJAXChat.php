@@ -65,33 +65,60 @@ class CustomAJAXChat extends AJAXChat {
 		global $pun_user;
 		
 		if($this->getUserRole() === AJAX_CHAT_GUEST && $pun_user['is_guest'] || ($this->getUserID() === $pun_user['id'])) {
-			$this->syncForumUserName();
+			$this->syncForumUserState();
 			return true;
 		}
 		return false;
 	}
 
-	function syncForumUserName() {
+	function getForumUserRole() {
+		global $pun_user;
+
+		if($pun_user['is_guest'])
+			return AJAX_CHAT_GUEST;
+		else if($pun_user['g_id'] == PUN_ADMIN)
+			return AJAX_CHAT_ADMIN;
+		else if($pun_user['g_id'] == PUN_MOD)
+			return AJAX_CHAT_MODERATOR;
+		else if($pun_user['g_id'] == 5)
+			return AJAX_CHAT_CUSTOM;
+
+		return AJAX_CHAT_USER;
+	}
+
+	function syncForumUserState() {
 		global $pun_user;
 
 		$currentUserName = $this->trimUserName($pun_user['username']);
+		$currentUserRole = $this->getForumUserRole();
+		$updates = array();
 
 		if(
 			$pun_user['is_guest'] ||
 			$currentUserName === null ||
-			$this->getUserID() !== $pun_user['id'] ||
-			($this->getUserName() === $currentUserName && $this->getLoginUserName() === $currentUserName)
+			$this->getUserID() !== $pun_user['id']
 		) {
 			return;
 		}
 
-		$this->setUserName($currentUserName);
-		$this->setLoginUserName($currentUserName);
+		if($this->getUserName() !== $currentUserName || $this->getLoginUserName() !== $currentUserName) {
+			$this->setUserName($currentUserName);
+			$this->setLoginUserName($currentUserName);
+			$updates[] = 'userName = '.$this->db->makeSafe($currentUserName);
+		}
+
+		if((int) $this->getUserRole() !== (int) $currentUserRole) {
+			$this->setUserRole($currentUserRole);
+			$updates[] = 'userRole = '.$this->db->makeSafe($currentUserRole);
+		}
+
+		if(empty($updates))
+			return;
 
 		$sql = 'UPDATE
 					'.$this->getDataBaseTable('online').'
 				SET
-					userName = '.$this->db->makeSafe($currentUserName).'
+					'.implode(', ', $updates).'
 				WHERE
 					userID = '.$this->db->makeSafe($pun_user['id']).';';
 
@@ -116,15 +143,7 @@ class CustomAJAXChat extends AJAXChat {
 			$userData['userID'] = $pun_user['id'];
 			
 			$userData['userName'] = $this->trimUserName($pun_user['username']);
-			
-			if($pun_user['g_id'] == PUN_ADMIN)
-				$userData['userRole'] = AJAX_CHAT_ADMIN;
-			elseif($pun_user['g_id'] == PUN_MOD)
-				$userData['userRole'] = AJAX_CHAT_MODERATOR;
-			elseif($pun_user['g_id'] == 5)
-				$userData['userRole'] = AJAX_CHAT_CUSTOM;
-			else
-				$userData['userRole'] = AJAX_CHAT_USER;
+			$userData['userRole'] = $this->getForumUserRole();
 
 			return $userData;
 			

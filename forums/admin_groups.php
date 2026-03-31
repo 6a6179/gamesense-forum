@@ -380,7 +380,16 @@ else if (isset($_POST['add_edit_group']))
 
 		// Promote all users who would be promoted to this group on their next post
 		if ($promote_next_group)
+		{
+			$promoted_user_ids = array();
+			$result = $db->query('SELECT id FROM '.$db->prefix.'users WHERE group_id = '.intval($_POST['group_id']).' AND num_posts >= '.$promote_min_posts) or error('Unable to fetch auto-promoted users', __FILE__, __LINE__, $db->error());
+
+			while ($cur_user = $db->fetch_assoc($result))
+				$promoted_user_ids[] = (int) $cur_user['id'];
+
 			$db->query('UPDATE '.$db->prefix.'users SET group_id = '.$promote_next_group.' WHERE group_id = '.intval($_POST['group_id']).' AND num_posts >= '.$promote_min_posts) or error('Unable to auto-promote existing users', __FILE__, __LINE__, $db->error());
+			forum_sync_chat_user_roles($promoted_user_ids, $promote_next_group);
+		}
 	}
 
 	// Regenerate the quick jump cache
@@ -450,7 +459,14 @@ else if (isset($_GET['del_group']))
 			if (isset($_POST['del_group']))
 			{
 				$move_to_group = intval($_POST['move_to_group']);
+				$moved_user_ids = array();
+				$result = $db->query('SELECT id FROM '.$db->prefix.'users WHERE group_id='.$group_id) or error('Unable to fetch users to move', __FILE__, __LINE__, $db->error());
+
+				while ($cur_user = $db->fetch_assoc($result))
+					$moved_user_ids[] = (int) $cur_user['id'];
+
 				$db->query('UPDATE '.$db->prefix.'users SET group_id='.$move_to_group.' WHERE group_id='.$group_id) or error('Unable to move users into group', __FILE__, __LINE__, $db->error());
+				forum_sync_chat_user_roles($moved_user_ids, $move_to_group);
 			}
 
 			// Delete the group and any forum specific permissions

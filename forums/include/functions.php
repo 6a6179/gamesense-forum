@@ -880,6 +880,74 @@ function get_title($user)
 	return $user_title;
 }
 
+//
+// Maps a forum group ID to the AJAX Chat role ID used in shoutbox rows.
+//
+function forum_chat_role_for_group($group_id)
+{
+	$group_id = (int) $group_id;
+
+	if ($group_id === PUN_UNVERIFIED || $group_id === PUN_GUEST)
+		return 0;
+	else if ($group_id === PUN_ADMIN)
+		return 3;
+	else if ($group_id === PUN_MOD)
+		return 2;
+	else if ($group_id === 5)
+		return 5;
+
+	return 1;
+}
+
+//
+// Determines whether the AJAX Chat tables required for role sync are available.
+//
+function forum_chat_sync_available()
+{
+	global $db;
+	static $available = null;
+
+	if ($available !== null)
+		return $available;
+
+	$available =
+		$db->table_exists('ajax_chat_online') &&
+		$db->field_exists('ajax_chat_online', 'userRole') &&
+		$db->table_exists('ajax_chat_messages') &&
+		$db->field_exists('ajax_chat_messages', 'userRole');
+
+	return $available;
+}
+
+//
+// Synchronizes a forum user's current role into the AJAX Chat tables.
+//
+function forum_sync_chat_user_role($user_id, $group_id)
+{
+	global $db;
+
+	$user_id = (int) $user_id;
+
+	if ($user_id <= PUN_GUEST_USER_ID || !forum_chat_sync_available())
+		return;
+
+	$chat_role = forum_chat_role_for_group($group_id);
+
+	$db->query('UPDATE '.$db->prefix.'ajax_chat_online SET userRole='.$chat_role.' WHERE userID='.$user_id) or error('Unable to sync ajax_chat_online role', __FILE__, __LINE__, $db->error());
+	$db->query('UPDATE '.$db->prefix.'ajax_chat_messages SET userRole='.$chat_role.' WHERE userID='.$user_id) or error('Unable to sync ajax_chat_messages role', __FILE__, __LINE__, $db->error());
+}
+
+//
+// Synchronizes multiple forum users into the AJAX Chat tables.
+//
+function forum_sync_chat_user_roles($user_ids, $group_id)
+{
+	$user_ids = array_unique(array_map('intval', (array) $user_ids));
+
+	foreach ($user_ids as $user_id)
+		forum_sync_chat_user_role($user_id, $group_id);
+}
+
 
 //
 // Generate a string with numbered links (for multipage scripts)

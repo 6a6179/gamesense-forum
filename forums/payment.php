@@ -54,6 +54,7 @@ if (isset($_POST['form_sent']))
 	$new_group_id = ((int) $pun_user['group_id'] === (int) $pun_config['o_default_user_group']) ? (int) $premium_group_id : (int) $pun_user['group_id'];
 
 	$db->query('UPDATE '.$db->prefix.'users SET csgo=\''.$db->escape($expires_at->format('Y-m-d H:i:s')).'\', group_id='.$new_group_id.' WHERE id='.(int) $pun_user['id']) or error('Unable to update subscription', __FILE__, __LINE__, $db->error());
+	forum_sync_chat_user_role($pun_user['id'], $new_group_id);
 
 	redirect('payment.php?action=complete&amp;days='.$days, 'Payment completed');
 }

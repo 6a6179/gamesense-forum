@@ -541,6 +541,7 @@ else if (isset($_POST['update_group_membership']))
 	$old_group_id = $db->result($result);
 
 	$db->query('UPDATE '.$db->prefix.'users SET group_id='.$new_group_id.' WHERE id='.$id) or error('Unable to change user group', __FILE__, __LINE__, $db->error());
+	forum_sync_chat_user_role($id, $new_group_id);
 
 	// Regenerate the users info cache
 	if (!defined('FORUM_CACHE_FUNCTIONS_LOADED'))
@@ -640,8 +641,11 @@ else if (isset($_POST['ban']))
 		redirect('admin_bans.php?edit_ban='.$ban_id.'&amp;exists', $lang_profile['Ban redirect']);
 	}
 	else
-	    $db->query('UPDATE '.$db->prefix.'users SET group_id=4 WHERE username=\''.$username.'\'') or error('Unable to update user', __FILE__, __LINE__, $db->error());
+	{
+		$db->query('UPDATE '.$db->prefix.'users SET group_id=4 WHERE username=\''.$username.'\'') or error('Unable to update user', __FILE__, __LINE__, $db->error());
+		forum_sync_chat_user_role($id, 4);
 		redirect('admin_bans.php?add_ban='.$id, $lang_profile['Ban redirect']);
+	}
 }
 
 
@@ -663,6 +667,7 @@ else if ($action == 'promote')
 
 	$next_group_id = $db->result($result);
 	$db->query('UPDATE '.$db->prefix.'users SET group_id='.$next_group_id.' WHERE id='.$id) or error('Unable to promote user', __FILE__, __LINE__, $db->error());
+	forum_sync_chat_user_role($id, $next_group_id);
 
 	redirect('viewtopic.php?pid='.$pid.'#p'.$pid, $lang_profile['User promote redirect']);
 }

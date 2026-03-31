@@ -437,6 +437,7 @@ if (isset($_POST['form_sent']))
 			{
 				$new_group_id = $pun_user['g_promote_next_group'];
 				$db->query('UPDATE '.$db->prefix.'users SET group_id='.$new_group_id.' WHERE id='.$pun_user['id']) or error('Unable to promote user to new group', __FILE__, __LINE__, $db->error());
+				forum_sync_chat_user_role($pun_user['id'], $new_group_id);
 			}
 
 			// Topic tracking stuff...

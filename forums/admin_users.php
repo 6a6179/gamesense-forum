@@ -341,6 +341,7 @@ else if (isset($_POST['move_users']) || isset($_POST['move_users_comply']))
 
 		// Change user group
 		$db->query('UPDATE '.$db->prefix.'users SET group_id='.$new_group.' WHERE id IN ('.implode(',', $user_ids).')') or error('Unable to change user group', __FILE__, __LINE__, $db->error());
+		forum_sync_chat_user_roles($user_ids, $new_group);
 
 		redirect('admin_users.php', $lang_admin_users['Users move redirect']);
 	}

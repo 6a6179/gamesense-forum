@@ -86,6 +86,7 @@ if ($code!=$_POST['2fa']){
 		if ($cur_user['group_id'] == PUN_UNVERIFIED)
 		{
 			$db->query('UPDATE '.$db->prefix.'users SET group_id='.$pun_config['o_default_user_group'].' WHERE id='.$cur_user['id']) or error('Unable to update user status', __FILE__, __LINE__, $db->error());
+			forum_sync_chat_user_role($cur_user['id'], $pun_config['o_default_user_group']);
 
 			// Regenerate the users info cache
 			if (!defined('FORUM_CACHE_FUNCTIONS_LOADED'))
