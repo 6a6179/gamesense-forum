@@ -19,9 +19,18 @@ On a fresh database import:
 
 ## Debian 13 installation
 
-This section is for a native Debian 13 install with Apache, MariaDB, and PHP.
+This section is for a native Debian 13 install with either:
+
+- Apache + `libapache2-mod-php`
+- Nginx + `php-fpm`
+
+The forum does not require Apache specifically.
 
 ### 1. Install system packages
+
+Choose one web stack.
+
+#### Option A: Apache
 
 ```bash
 sudo apt update
@@ -30,7 +39,26 @@ sudo apt install -y \
   apache2 \
   mariadb-server \
   libapache2-mod-php \
-  php \
+  php-cli \
+  php-mysql \
+  php-curl \
+  php-gd \
+  php-mbstring \
+  php-xml \
+  php-zip \
+  unzip
+```
+
+#### Option B: Nginx
+
+```bash
+sudo apt update
+sudo apt install -y \
+  git \
+  nginx \
+  mariadb-server \
+  php-fpm \
+  php-cli \
   php-mysql \
   php-curl \
   php-gd \
@@ -93,7 +121,11 @@ WHERE conf_name = 'recaptcha_enabled';
 SQL
 ```
 
-### 6. Configure Apache
+### 6. Configure the web server
+
+Choose one of the following.
+
+#### Option A: Apache
 
 Create `/etc/apache2/sites-available/gamesense-forum.conf`:
 
@@ -136,6 +168,64 @@ If you terminate TLS on Apache, set:
 
 ```apache
 SetEnv FORUM_COOKIE_SECURE 1
+```
+
+#### Option B: Nginx
+
+Debian 13 ships `php-fpm` as the default FPM package. On a default install this is PHP 8.4, so the usual socket path is `/run/php/php8.4-fpm.sock`.
+
+Create `/etc/nginx/sites-available/gamesense-forum`:
+
+```nginx
+server {
+    listen 80;
+    server_name forum.example.com;
+    root /var/www/gamesense-forum;
+    index index.php index.html;
+
+    location / {
+        try_files $uri $uri/ /index.php?$query_string;
+    }
+
+    location ~ \.php$ {
+        include snippets/fastcgi-php.conf;
+        fastcgi_pass unix:/run/php/php8.4-fpm.sock;
+
+        fastcgi_param FORUM_DB_HOST localhost;
+        fastcgi_param FORUM_DB_NAME gamesense_forum;
+        fastcgi_param FORUM_DB_USER gamesense;
+        fastcgi_param FORUM_DB_PASSWORD change_this_password;
+        fastcgi_param FORUM_DB_PREFIX gs_;
+
+        fastcgi_param FORUM_COOKIE_NAME pun_cookie_gamesense;
+        fastcgi_param FORUM_COOKIE_DOMAIN "";
+        fastcgi_param FORUM_COOKIE_PATH /;
+        fastcgi_param FORUM_COOKIE_SECURE 0;
+        fastcgi_param FORUM_COOKIE_SEED replace_this_with_a_long_random_secret;
+    }
+
+    location ~ /\.ht {
+        deny all;
+    }
+}
+```
+
+Enable the site and reload Nginx:
+
+```bash
+sudo ln -s /etc/nginx/sites-available/gamesense-forum /etc/nginx/sites-enabled/gamesense-forum
+sudo rm -f /etc/nginx/sites-enabled/default
+sudo nginx -t
+sudo systemctl enable --now nginx php8.4-fpm
+sudo systemctl reload nginx
+```
+
+If your PHP-FPM socket path is different, inspect `/run/php/` and adjust `fastcgi_pass` accordingly.
+
+If you terminate TLS on Nginx, set:
+
+```nginx
+fastcgi_param FORUM_COOKIE_SECURE 1;
 ```
 
 ### 7. Complete first boot
