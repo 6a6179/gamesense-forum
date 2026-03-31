@@ -2,3 +2,4 @@
 /README.md
 .env
 forums/cache/cache_*.php
+forums/cache/login_throttle/

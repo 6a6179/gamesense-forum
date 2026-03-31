@@ -13,6 +13,10 @@ class AJAXChatDataBase {
 	var $_db;
 
 	function __construct(&$dbConnectionConfig) {
+		if($dbConnectionConfig['type'] === 'mysql' && !function_exists('mysql_connect') && function_exists('mysqli_connect')) {
+			$dbConnectionConfig['type'] = 'mysqli';
+		}
+
 		switch($dbConnectionConfig['type']) {
 			case 'mysqli':
 				$this->_db = new AJAXChatDatabaseMySQLi($dbConnectionConfig);

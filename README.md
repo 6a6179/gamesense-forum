@@ -151,6 +151,7 @@ Create `/etc/apache2/sites-available/gamesense-forum.conf`:
     SetEnv FORUM_COOKIE_DOMAIN
     SetEnv FORUM_COOKIE_PATH /
     SetEnv FORUM_COOKIE_SECURE 0
+    SetEnv FORUM_COOKIE_SAMESITE Lax
     SetEnv FORUM_COOKIE_SEED replace_this_with_a_long_random_secret
 
     ErrorLog ${APACHE_LOG_DIR}/gamesense-forum-error.log
@@ -203,6 +204,7 @@ server {
         fastcgi_param FORUM_COOKIE_DOMAIN "";
         fastcgi_param FORUM_COOKIE_PATH /;
         fastcgi_param FORUM_COOKIE_SECURE 0;
+        fastcgi_param FORUM_COOKIE_SAMESITE Lax;
         fastcgi_param FORUM_COOKIE_SEED replace_this_with_a_long_random_secret;
     }
 
@@ -211,6 +213,8 @@ server {
     }
 }
 ```
+
+Outside local development, the forum now refuses to boot if `FORUM_DB_PASSWORD` or `FORUM_COOKIE_SEED` are left on their placeholder defaults. If you need to bypass that check temporarily, set `FORUM_ALLOW_INSECURE_DEFAULTS=1`, but that should stay limited to local/dev only.
 
 Enable the site and reload Nginx:
 
@@ -242,6 +246,7 @@ On a clean install, register the first account through `register.php`. That acco
 ## Local Docker development
 
 The repo includes a local Docker setup for development.
+It now runs the forum on PHP 8.4.
 
 ### Start
 

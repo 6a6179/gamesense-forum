@@ -20,6 +20,47 @@ if (!$pun_user['is_admmod'])
 require PUN_ROOT.'lang/'.$admin_language.'/admin_index.php';
 
 
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['request_type'], $_POST['request_action'], $_POST['request_user_id']))
+{
+	confirm_referrer('admin_requests.php');
+	check_csrf($_POST['csrf_token']);
+
+	$request_type = $_POST['request_type'];
+	$request_action = $_POST['request_action'];
+	$resetid = intval($_POST['request_user_id']);
+
+	if ($request_type === 'discord')
+	{
+		if ($request_action === 'approve' && isset($_POST['request_new_value']))
+		{
+			$resetidnew = $db->escape(pun_trim($_POST['request_new_value']));
+			$db->query('UPDATE '.$db->prefix.'users SET discord=\''.$resetidnew.'\', discord_new=NULL, discord_reason=NULL WHERE id='.$resetid) or error('Unable to update user', __FILE__, __LINE__, $db->error());
+			redirect('admin_requests.php', 'Request was approved');
+		}
+		else if ($request_action === 'decline')
+		{
+			$db->query('UPDATE '.$db->prefix.'users SET discord_new=NULL, discord_reason=NULL WHERE id='.$resetid) or error('Unable to fetch user info', __FILE__, __LINE__, $db->error());
+			redirect('admin_requests.php', 'Request was declined');
+		}
+	}
+	else if ($request_type === 'hwid')
+	{
+		if ($request_action === 'approve' && isset($_POST['request_new_hwid'], $_POST['request_new_ip']))
+		{
+			$resetidnew = intval($_POST['request_new_hwid']);
+			$resetipnew = $db->escape(pun_trim($_POST['request_new_ip']));
+			$db->query('UPDATE '.$db->prefix.'users SET hwid='.$resetidnew.', hwid_new=NULL, hwid_reason=NULL, hwid_ip=\''.$resetipnew.'\', hwid_ip_new=NULL, parts=newparts, newparts=NULL WHERE id='.$resetid) or error('Unable to fetch user info', __FILE__, __LINE__, $db->error());
+			redirect('admin_requests.php', 'Request was approved');
+		}
+		else if ($request_action === 'decline')
+		{
+			$db->query('UPDATE '.$db->prefix.'users SET hwid_new=NULL, hwid_reason=NULL, hwid_ip_new=NULL WHERE id='.$resetid) or error('Unable to fetch user info', __FILE__, __LINE__, $db->error());
+			redirect('admin_requests.php', 'Request was declined');
+		}
+	}
+
+	redirect('admin_requests.php', 'Unknown parameters');
+}
 
 
 $page_title = array(pun_htmlspecialchars($pun_config['o_board_title']), $lang_admin_common['Admin'], "Requests");
@@ -27,70 +68,7 @@ define('PUN_ACTIVE_PAGE', 'requests');
 require PUN_ROOT.'header.php';
 
 
-if(isset($_GET['discord']) && isset($_GET['id'])){
-									// Add an extra layer of security
-									confirm_referrer('admin_requests.php');
-									
-									// CSRF check
-									check_csrf($_GET['csrf_token']);
-
-									$resetid = intval($_GET['id']); // We do not need to escape this one as it will be casted to integer, which will eliminate the possibility of a sql injection.
-									
-									if($_GET['discord'] == "approve" && isset($_GET['new'])){
-										$resetidnew = $db->escape($_GET['new']);
-										$db->query("UPDATE `gs_users` SET `discord` = '$resetidnew', `discord_new` = NULL, `discord_reason` = NULL WHERE `id` = " . $resetid) or error('Unable to update user', __FILE__, __LINE__, $db->error());
-
-										//
-										redirect('admin_requests.php', "Request was approved");
-										die();
-									} elseif($_GET['discord'] == "decline"){
-										$db->query("UPDATE `gs_users` SET `discord_new` = NULL, `discord_reason` = NULL WHERE `id` = " . $resetid) or error('Unable to fetch user info', __FILE__, __LINE__, $db->error());
-
-											//
-										redirect('admin_requests.php', "Request was declined");
-										die();
-									} else {
-									
-									redirect('admin_requests.php', "Unknown parameters");
-								die();
-									}
-								}
-								
-								
-if(isset($_GET['hwid']) && isset($_GET['id'])){
-
-									// Add an extra layer of security
-									confirm_referrer('admin_requests.php');
-									
-									// CSRF check
-									check_csrf($_GET['csrf_token']);
-
-									$resetid = intval($_GET['id']);
-									
-									if($_GET['hwid'] == "approve" && isset($_GET['new']) && isset($_GET['ip'])){
-										$resetidnew = intval($_GET['new']);
-										$resetipnew = $db->escape($_GET['ip']);
-										$db->query("UPDATE `gs_users` SET `hwid` = '$resetidnew', `hwid_new` = NULL, `hwid_reason` = NULL, `hwid_ip` = '$resetipnew', `hwid_ip_new`, `parts` = `newparts`= NULL, `newparts` = NULL WHERE `id` = '$resetid'") or error('Unable to fetch user info', __FILE__, __LINE__, $db->error());
-
-										//
-										redirect('admin_requests.php', "Request was approved");
-										die();
-									} elseif($_GET['hwid'] == "decline"){
-										$db->query("UPDATE `gs_users` SET `hwid_new` = NULL, `hwid_reason` = NULL, `hwid_ip_new` = NULL WHERE `id` = '$resetid'") or error('Unable to fetch user info', __FILE__, __LINE__, $db->error());
-
-											//
-										redirect('admin_requests.php', "Request was declined");
-										die();
-									} else {
-									
-									redirect('admin_requests.php', "Unknown parameters");
-								die();
-									}
-								}								
-								
-								
-								
-								generate_admin_menu('requests');
+generate_admin_menu('requests');
 							
 ?>
 
@@ -115,7 +93,7 @@ if(isset($_GET['hwid']) && isset($_GET['id'])){
 						<tbody>
 						<?php 
 						
-						$result44 = $db->query("SELECT * FROM `gs_users` WHERE `discord_reason` IS NOT NULL") or error('Unable to fetch user info', __FILE__, __LINE__, $db->error());
+						$result44 = $db->query('SELECT * FROM '.$db->prefix.'users WHERE discord_reason IS NOT NULL') or error('Unable to fetch user info', __FILE__, __LINE__, $db->error());
 
 						
 						foreach($result44 as $item): ?>
@@ -129,7 +107,28 @@ if(isset($_GET['hwid']) && isset($_GET['id'])){
 							<td class="tc3"><?php echo $item['discord_new'] ?></td>
 							<td class="tc3"><?php echo $item['discord_ip_new'] ?></td>
 							<td class="tc3"><?php echo pun_htmlspecialchars($item['discord_reason']) ?></td>
-							<td class="tc3"><a href="admin_requests.php?csrf_token=<?php echo pun_csrf_token() ?>&discord=approve&id=<?php echo $item['id']?>&new=<?php echo $item['discord_new']?>">Approve</a> / <a href="admin_requests.php?csrf_token=<?php echo pun_csrf_token() ?>&discord=decline&id=<?php echo $item['id']?>">Decline</a></td>
+							<td class="tc3">
+								<form method="post" action="admin_requests.php" style="display:inline;margin:0">
+									<div>
+										<input type="hidden" name="csrf_token" value="<?php echo pun_csrf_token(); ?>" />
+										<input type="hidden" name="request_type" value="discord" />
+										<input type="hidden" name="request_action" value="approve" />
+										<input type="hidden" name="request_user_id" value="<?php echo $item['id'] ?>" />
+										<input type="hidden" name="request_new_value" value="<?php echo pun_htmlspecialchars($item['discord_new']) ?>" />
+										<button type="submit" style="background:none;border:0;color:#71c4ff;cursor:pointer;font:inherit;padding:0;text-decoration:underline">Approve</button>
+									</div>
+								</form>
+								/
+								<form method="post" action="admin_requests.php" style="display:inline;margin:0">
+									<div>
+										<input type="hidden" name="csrf_token" value="<?php echo pun_csrf_token(); ?>" />
+										<input type="hidden" name="request_type" value="discord" />
+										<input type="hidden" name="request_action" value="decline" />
+										<input type="hidden" name="request_user_id" value="<?php echo $item['id'] ?>" />
+										<button type="submit" style="background:none;border:0;color:#71c4ff;cursor:pointer;font:inherit;padding:0;text-decoration:underline">Decline</button>
+									</div>
+								</form>
+							</td>
 							
 							
 							
@@ -173,7 +172,7 @@ if(isset($_GET['hwid']) && isset($_GET['id'])){
 						<tbody>
 						<?php 
 						
-						$result447 = $db->query("SELECT * FROM `gs_users` WHERE `hwid_reason` IS NOT NULL") or error('Unable to fetch user info', __FILE__, __LINE__, $db->error());
+						$result447 = $db->query('SELECT * FROM '.$db->prefix.'users WHERE hwid_reason IS NOT NULL') or error('Unable to fetch user info', __FILE__, __LINE__, $db->error());
 
 						
 						foreach($result447 as $item): ?>
@@ -188,7 +187,29 @@ if(isset($_GET['hwid']) && isset($_GET['id'])){
 							<td class="tc3"><?php echo pun_htmlspecialchars($item['newparts']) ?></td>
 							<td class="tc3"><?php echo $item['hwid_ip_new'] ?></td>
 							<td class="tc3"><?php echo pun_htmlspecialchars($item['hwid_reason']) ?></td>
-							<td class="tc3"><a href="admin_requests.php?csrf_token=<?php echo pun_csrf_token() ?>&hwid=approve&id=<?php echo $item['id']?>&new=<?php echo $item['hwid_new']?>&ip=<?php echo $item['ip_new']?>">Approve</a> / <a href="admin_requests.php?csrf_token=<?php echo pun_csrf_token() ?>&hwid=decline&id=<?php echo $item['id']?>">Decline</a></td>
+							<td class="tc3">
+								<form method="post" action="admin_requests.php" style="display:inline;margin:0">
+									<div>
+										<input type="hidden" name="csrf_token" value="<?php echo pun_csrf_token(); ?>" />
+										<input type="hidden" name="request_type" value="hwid" />
+										<input type="hidden" name="request_action" value="approve" />
+										<input type="hidden" name="request_user_id" value="<?php echo $item['id'] ?>" />
+										<input type="hidden" name="request_new_hwid" value="<?php echo intval($item['hwid_new']) ?>" />
+										<input type="hidden" name="request_new_ip" value="<?php echo pun_htmlspecialchars($item['hwid_ip_new']) ?>" />
+										<button type="submit" style="background:none;border:0;color:#71c4ff;cursor:pointer;font:inherit;padding:0;text-decoration:underline">Approve</button>
+									</div>
+								</form>
+								/
+								<form method="post" action="admin_requests.php" style="display:inline;margin:0">
+									<div>
+										<input type="hidden" name="csrf_token" value="<?php echo pun_csrf_token(); ?>" />
+										<input type="hidden" name="request_type" value="hwid" />
+										<input type="hidden" name="request_action" value="decline" />
+										<input type="hidden" name="request_user_id" value="<?php echo $item['id'] ?>" />
+										<button type="submit" style="background:none;border:0;color:#71c4ff;cursor:pointer;font:inherit;padding:0;text-decoration:underline">Decline</button>
+									</div>
+								</form>
+							</td>
 							
 							
 							

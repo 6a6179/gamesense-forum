@@ -115,6 +115,19 @@ define('PUN_GUEST', 3);
 define('PUN_MEMBER', 4);
 define('PUN_GUEST_USER_ID', 0);
 define('PUN_ROOT_ADMIN_USER_ID', 1);
+define('FORUM_LOGIN_THROTTLE_WINDOW', 900);
+define('FORUM_LOGIN_THROTTLE_IP_MAX_ATTEMPTS', 12);
+define('FORUM_LOGIN_THROTTLE_USER_MAX_ATTEMPTS', 6);
+
+$forum_runtime_config_errors = forum_validate_runtime_configuration();
+if (!empty($forum_runtime_config_errors))
+{
+	if (!headers_sent())
+		header('HTTP/1.1 500 Internal Server Error');
+
+	error_log('Forum configuration error: '.implode(' | ', $forum_runtime_config_errors));
+	exit('Forum configuration error. Check the server error log.');
+}
 
 // Load DB abstraction layer and connect
 require PUN_ROOT.'include/dblayer/common_db.php';

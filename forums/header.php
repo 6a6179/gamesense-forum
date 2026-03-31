@@ -170,7 +170,8 @@ function process_form(the_form)
 
 }
 
-$page_head['colorize_groups'] = '<style type="text/css">'.$GLOBALS['pun_colorize_groups']['style'].'</style>'; // need $GLOBALS for message function
+$colorize_group_style = isset($GLOBALS['pun_colorize_groups']['style']) ? $GLOBALS['pun_colorize_groups']['style'] : '';
+$page_head['colorize_groups'] = '<style type="text/css">'.$colorize_group_style.'</style>'; // need $GLOBALS for message function
 // New PMS
 require PUN_ROOT.'include/pms_new/pmsnheader.php';
 if (!empty($page_head))
@@ -256,7 +257,7 @@ else
 	if ($pun_user['is_admmod'])
 		$links[] = '<li id="navadmin"'.((PUN_ACTIVE_PAGE == 'admin') ? ' class="isactive"' : '').'><a class="usergroup-2" href="admin_index.php">'.$lang_common['Admin'].'</a></li>';
 		
-	$links[] = '<li id="navlogout"><a href="login.php?action=out&amp;id='.$pun_user['id'].'&amp;csrf_token='.pun_csrf_token().'">'.$lang_common['Logout'].'</a></li>';
+	$links[] = '<li id="navlogout"><form method="post" action="login.php?action=out" style="display:inline;margin:0"><input type="hidden" name="csrf_token" value="'.pun_csrf_token().'" /><button type="submit" style="background:none;border:0;color:inherit;cursor:pointer;display:inline;font:inherit;line-height:inherit;padding:0;vertical-align:baseline">'.$lang_common['Logout'].'</button></form></li>';
 }
 
 // Are there any additional navlinks we should insert into the array before imploding it?

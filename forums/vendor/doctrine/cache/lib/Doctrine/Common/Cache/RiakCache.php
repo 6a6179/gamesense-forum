@@ -23,7 +23,6 @@ use Riak\Bucket;
 use Riak\Connection;
 use Riak\Input;
 use Riak\Exception;
-use Riak\Object;
 
 /**
  * Riak cache provider.
@@ -129,7 +128,7 @@ class RiakCache extends CacheProvider
     protected function doSave($id, $data, $lifeTime = 0)
     {
         try {
-            $object = new Object($id);
+            $object = $this->createObject($id);
 
             $object->setContent(serialize($data));
 
@@ -204,7 +203,7 @@ class RiakCache extends CacheProvider
      *
      * @return bool
      */
-    private function isExpired(Object $object)
+    private function isExpired($object)
     {
         $metadataMap = $object->getMetadataMap();
 
@@ -240,11 +239,18 @@ class RiakCache extends CacheProvider
         $putInput = new Input\PutInput();
         $putInput->setVClock($vClock);
 
-        $mergedObject = new Object($id);
+        $mergedObject = $this->createObject($id);
         $mergedObject->setContent($winner->getContent());
 
         $this->bucket->put($mergedObject, $putInput);
 
         return $mergedObject;
+    }
+
+    private function createObject($id)
+    {
+        $className = 'Riak\\Object';
+
+        return new $className($id);
     }
 }

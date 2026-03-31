@@ -10,6 +10,10 @@
 if (!defined('PUN'))
 	exit;
 
+// PHP 8 removed ext/mysql. Migrate old configs onto the mysqli adapters when available.
+if (($db_type === 'mysql' || $db_type === 'mysql_innodb') && !function_exists('mysql_connect') && function_exists('mysqli_connect'))
+	$db_type = ($db_type === 'mysql_innodb') ? 'mysqli_innodb' : 'mysqli';
+
 
 // Load the appropriate DB layer class
 switch ($db_type)

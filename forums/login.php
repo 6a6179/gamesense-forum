@@ -28,47 +28,57 @@ if (isset($_POST['form_sent']) && $action == 'in')
 	$form_username = pun_trim($_POST['req_username']);
 	$form_password = pun_trim($_POST['req_password']);
 	$save_pass = isset($_POST['save_pass']);
-
-	$username_sql = ($db_type == 'mysql' || $db_type == 'mysqli' || $db_type == 'mysql_innodb' || $db_type == 'mysqli_innodb') ? 'username=\''.$db->escape($form_username).'\'' : 'LOWER(username)=LOWER(\''.$db->escape($form_username).'\')';
-
-	$result = $db->query('SELECT * FROM '.$db->prefix.'users WHERE '.$username_sql) or error('Unable to fetch user info', __FILE__, __LINE__, $db->error());
-	$cur_user = $db->fetch_assoc($result);
-
+	$submitted_2fa = isset($_POST['2fa']) ? pun_trim($_POST['2fa']) : '';
+	$remote_addr = get_remote_address();
 	$authorized = false;
 	$needs_password_upgrade = false;
-	$updated_password_hash = isset($cur_user['password']) ? $cur_user['password'] : '';
+	$updated_password_hash = '';
+	$cur_user = array();
+	$should_record_login_failure = false;
 
-	if (!empty($cur_user['password']))
+	$retry_after = forum_login_throttle_retry_after($remote_addr, $form_username);
+	if ($retry_after > 0)
+		$errors[] = 'Too many login attempts. Please wait '.max(1, ceil($retry_after / 60)).' minute(s) and try again.';
+	else
 	{
-		$legacy_salt = isset($cur_user['salt']) ? $cur_user['salt'] : null;
-		$authorized = forum_password_verify($form_password, $cur_user['password'], $legacy_salt);
-		if ($authorized && (($legacy_salt !== null && $legacy_salt !== '') || forum_password_needs_rehash($cur_user['password'])))
+		$username_sql = ($db_type == 'mysql' || $db_type == 'mysqli' || $db_type == 'mysql_innodb' || $db_type == 'mysqli_innodb') ? 'username=\''.$db->escape($form_username).'\'' : 'LOWER(username)=LOWER(\''.$db->escape($form_username).'\')';
+
+		$result = $db->query('SELECT * FROM '.$db->prefix.'users WHERE '.$username_sql) or error('Unable to fetch user info', __FILE__, __LINE__, $db->error());
+		$cur_user = $db->fetch_assoc($result);
+		$updated_password_hash = isset($cur_user['password']) ? $cur_user['password'] : '';
+
+		if (!empty($cur_user['password']))
 		{
-			$needs_password_upgrade = true;
-			$updated_password_hash = forum_password_hash($form_password);
+			$legacy_salt = isset($cur_user['salt']) ? $cur_user['salt'] : null;
+			$authorized = forum_password_verify($form_password, $cur_user['password'], $legacy_salt);
+			if ($authorized && (($legacy_salt !== null && $legacy_salt !== '') || forum_password_needs_rehash($cur_user['password'])))
+			{
+				$needs_password_upgrade = true;
+				$updated_password_hash = forum_password_hash($form_password);
+			}
+		}
+
+		if (!$authorized)
+		{
+			$errors[] = $lang_login['Wrong user/pass'];
+			$should_record_login_failure = true;
+		}
+
+		if ($authorized && !empty($cur_user['ga']) && $cur_user['ga_enabled'] == '1')
+		{
+			$ga = new GoogleAuthenticator;
+			if ($submitted_2fa === '' || !$ga->checkCode($cur_user['ga'], $submitted_2fa))
+			{
+				$errors[] = 'Invalid two factor authentication code.';
+				$should_record_login_failure = true;
+			}
 		}
 	}
 
-	if (!$authorized)
-		$errors[] = $lang_login['Wrong user/pass'];
-
-    if($authorized && $cur_user['ga'] != null && $cur_user['ga_enabled'] == "1"){
-			$ga=new GoogleAuthenticator;
-$code=$ga->getCode($cur_user['ga']);
-if ($code!=$_POST['2fa']){
-	if($_POST['2fa']== $cur_user['ga']){
-		$histopid = $cur_user['id'];
-			$db->query('UPDATE users SET ga_enabled=0 WHERE id='.$histopid) or error('Unable to update user info', __FILE__, __LINE__, $db->error());
-			$db->query('UPDATE users SET ga=NULL WHERE id='.$histopid) or error('Unable to update user info', __FILE__, __LINE__, $db->error());
-	} else {
-	  $errors[] = 'Invalid two factor authentication code.';
-	}
-}
-			
-			
-	}
-
 	flux_hook('login_after_validation');
+
+	if (!empty($errors) && $should_record_login_failure)
+		forum_login_throttle_record_failure($remote_addr, $form_username);
 
 	// Did everything go according to plan?
 	if (empty($errors))
@@ -100,6 +110,7 @@ if ($code!=$_POST['2fa']){
 
 		$expire = ($save_pass == '1') ? time() + 1209600 : time() + $pun_config['o_timeout_visit'];
 		pun_setcookie($cur_user['id'], $cur_user['password'], $expire);
+		forum_login_throttle_clear_user($form_username);
 
 		// Reset tracked topics
 		set_tracked_topics(null);
@@ -114,13 +125,13 @@ if ($code!=$_POST['2fa']){
 
 else if ($action == 'out')
 {
-	if ($pun_user['is_guest'] || !isset($_GET['id']) || $_GET['id'] != $pun_user['id'])
+	if ($_SERVER['REQUEST_METHOD'] !== 'POST' || $pun_user['is_guest'])
 	{
 		header('Location: index.php');
 		exit;
 	}
 
-	check_csrf($_GET['csrf_token']);
+	check_csrf($_POST['csrf_token']);
 
 	// Remove user from "users online" list
 	$db->query('DELETE FROM '.$db->prefix.'online WHERE user_id='.$pun_user['id']) or error('Unable to delete from online list', __FILE__, __LINE__, $db->error());

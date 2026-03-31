@@ -221,6 +221,85 @@ function get_current_protocol()
 
 
 //
+// Validate SameSite cookie configuration
+//
+function forum_is_valid_cookie_same_site($same_site)
+{
+	return in_array(strtolower((string) $same_site), array('lax', 'strict', 'none'), true);
+}
+
+
+//
+// Normalize SameSite cookie configuration
+//
+function forum_normalize_cookie_same_site($same_site)
+{
+	$same_site = strtolower((string) $same_site);
+
+	switch ($same_site)
+	{
+		case 'strict':
+			return 'Strict';
+		case 'none':
+			return 'None';
+		default:
+			return 'Lax';
+	}
+}
+
+
+//
+// Determine whether the forum is running in a local/dev context
+//
+function forum_is_local_environment()
+{
+	if (in_array(PHP_SAPI, array('cli', 'cli-server', 'phpdbg'), true))
+		return true;
+
+	$server_values = array();
+	foreach (array('HTTP_HOST', 'SERVER_NAME', 'SERVER_ADDR', 'REMOTE_ADDR') as $key)
+	{
+		if (!empty($_SERVER[$key]))
+			$server_values[] = strtolower((string) $_SERVER[$key]);
+	}
+
+	foreach ($server_values as $value)
+	{
+		$host = preg_replace('%:\d+$%', '', $value);
+		if (in_array($host, array('localhost', '127.0.0.1', '::1'), true) || substr($host, -6) === '.local')
+			return true;
+	}
+
+	return false;
+}
+
+
+//
+// Validate critical runtime configuration before boot continues
+//
+function forum_validate_runtime_configuration()
+{
+	global $db_password, $cookie_seed, $cookie_same_site, $allow_insecure_defaults;
+
+	$errors = array();
+	$allow_insecure = !empty($allow_insecure_defaults) || forum_is_local_environment();
+
+	if (!$allow_insecure)
+	{
+		if ($db_password === 'CHANGE_PASSWORD' || trim((string) $db_password) === '')
+			$errors[] = 'FORUM_DB_PASSWORD must be configured.';
+		if ($cookie_seed === 'CHANGE_PASSWORD_256BITPW' || trim((string) $cookie_seed) === '')
+			$errors[] = 'FORUM_COOKIE_SEED must be configured.';
+	}
+
+	if (!forum_is_valid_cookie_same_site($cookie_same_site))
+		$errors[] = 'FORUM_COOKIE_SAMESITE must be Lax, Strict, or None.';
+
+	return $errors;
+}
+
+
+//
 // Fetch the base_url, optionally support HTTPS and HTTP
 //
 function get_base_url($support_https = false)
@@ -365,7 +444,7 @@ function pun_setcookie($user_id, $password_hash, $expire)
 //
 function forum_setcookie($name, $value, $expire)
 {
-	global $cookie_path, $cookie_domain, $cookie_secure, $pun_config;
+	global $cookie_path, $cookie_domain, $cookie_secure, $cookie_same_site, $pun_config;
 
 	if ($expire - time() - $pun_config['o_timeout_visit'] < 1)
 		$expire = 0;
@@ -373,10 +452,22 @@ function forum_setcookie($name, $value, $expire)
 	// Enable sending of a P3P header
 	header('P3P: CP="CUR ADM"');
 
-	if (version_compare(PHP_VERSION, '5.2.0', '>='))
-		setcookie($name, $value, $expire, $cookie_path, $cookie_domain, $cookie_secure, true);
+	$secure_cookie = !empty($cookie_secure) || get_current_protocol() === 'https';
+	$same_site = forum_normalize_cookie_same_site($cookie_same_site);
+
+	if (PHP_VERSION_ID >= 70300)
+	{
+		setcookie($name, $value, array(
+			'expires' => $expire,
+			'path' => $cookie_path,
+			'domain' => $cookie_domain,
+			'secure' => $secure_cookie,
+			'httponly' => true,
+			'samesite' => $same_site,
+		));
+	}
 	else
-		setcookie($name, $value, $expire, $cookie_path.'; HttpOnly', $cookie_domain, $cookie_secure);
+		setcookie($name, $value, $expire, $cookie_path.'; samesite='.$same_site.'; HttpOnly', $cookie_domain, $secure_cookie);
 }
 
 
@@ -946,6 +1037,153 @@ function forum_sync_chat_user_roles($user_ids, $group_id)
 
 	foreach ($user_ids as $user_id)
 		forum_sync_chat_user_role($user_id, $group_id);
+}
+
+
+//
+// Return the cache directory used for login throttle files
+//
+function forum_login_throttle_directory()
+{
+	return FORUM_CACHE_DIR.'login_throttle/';
+}
+
+
+//
+// Normalize throttle identifiers before they are hashed to disk
+//
+function forum_login_throttle_normalize_identifier($type, $identifier)
+{
+	$identifier = pun_trim((string) $identifier);
+
+	if ($identifier === '')
+		return '';
+
+	return $type === 'user' ? utf8_strtolower($identifier) : $identifier;
+}
+
+
+//
+// Read or mutate a login throttle bucket
+//
+function forum_login_throttle_bucket($type, $identifier, $action, $limit = 0)
+{
+	$stub = "<?php exit; ?>\n";
+	$identifier = forum_login_throttle_normalize_identifier($type, $identifier);
+	if ($identifier === '')
+		return 0;
+
+	$dir = forum_login_throttle_directory();
+	if (!is_dir($dir) && !@mkdir($dir, 0755, true) && !is_dir($dir))
+		return 0;
+
+	$file = $dir.$type.'_'.sha1($identifier).'.php';
+	$handle = @fopen($file, 'c+');
+	if ($handle === false)
+		return 0;
+
+	if (!flock($handle, LOCK_EX))
+	{
+		fclose($handle);
+		return 0;
+	}
+
+	$raw_state = stream_get_contents($handle);
+	if (strpos($raw_state, $stub) === 0)
+		$raw_state = substr($raw_state, strlen($stub));
+
+	$state = json_decode($raw_state, true);
+	if (!is_array($state))
+		$state = array();
+
+	$now = time();
+	$window = FORUM_LOGIN_THROTTLE_WINDOW;
+	$count = isset($state['count']) ? intval($state['count']) : 0;
+	$first_attempt = isset($state['first_attempt']) ? intval($state['first_attempt']) : 0;
+	$expires_at = isset($state['expires_at']) ? intval($state['expires_at']) : 0;
+
+	if ($count < 1 || $first_attempt < 1 || $expires_at <= $now)
+	{
+		$count = 0;
+		$first_attempt = 0;
+		$expires_at = 0;
+	}
+
+	$result = 0;
+
+	if ($action === 'check')
+	{
+		if ($limit > 0 && $count >= $limit && $expires_at > $now)
+			$result = $expires_at - $now;
+	}
+	else if ($action === 'increment')
+	{
+		if ($count < 1)
+			$first_attempt = $now;
+
+		++$count;
+		$expires_at = $first_attempt + $window;
+	}
+	else if ($action === 'clear')
+	{
+		$count = 0;
+		$first_attempt = 0;
+		$expires_at = 0;
+	}
+
+	$delete_file = ($count < 1);
+
+	rewind($handle);
+	ftruncate($handle, 0);
+
+	if (!$delete_file)
+	{
+		fwrite($handle, $stub.json_encode(array(
+			'count' => $count,
+			'first_attempt' => $first_attempt,
+			'expires_at' => $expires_at,
+		)));
+		fflush($handle);
+	}
+
+	flock($handle, LOCK_UN);
+	fclose($handle);
+
+	if ($delete_file && file_exists($file))
+		@unlink($file);
+
+	return $result;
+}
+
+
+//
+// Check whether the current login should be throttled
+//
+function forum_login_throttle_retry_after($remote_addr, $username)
+{
+	$retry_after = intval(forum_login_throttle_bucket('ip', $remote_addr, 'check', FORUM_LOGIN_THROTTLE_IP_MAX_ATTEMPTS));
+	$user_retry_after = intval(forum_login_throttle_bucket('user', $username, 'check', FORUM_LOGIN_THROTTLE_USER_MAX_ATTEMPTS));
+
+	return max($retry_after, $user_retry_after);
+}
+
+
+//
+// Record a failed login attempt for IP and username buckets
+//
+function forum_login_throttle_record_failure($remote_addr, $username)
+{
+	forum_login_throttle_bucket('ip', $remote_addr, 'increment');
+	forum_login_throttle_bucket('user', $username, 'increment');
+}
+
+
+//
+// Clear username-specific throttle state after a successful login
+//
+function forum_login_throttle_clear_user($username)
+{
+	forum_login_throttle_bucket('user', $username, 'clear');
 }
 
 
