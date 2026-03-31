@@ -71,12 +71,12 @@ error_reporting(E_ALL);
 // Force POSIX locale (to prevent functions such as strtolower() from messing up UTF-8 strings)
 setlocale(LC_CTYPE, 'C');
 
-// Turn off magic_quotes_runtime
-if (get_magic_quotes_runtime())
+// Skip removed/deprecated magic quotes APIs on modern PHP versions.
+if (PHP_VERSION_ID < 70400 && function_exists('get_magic_quotes_runtime') && get_magic_quotes_runtime() && function_exists('set_magic_quotes_runtime'))
 	set_magic_quotes_runtime(0);
 
 // Strip slashes from GET/POST/COOKIE (if magic_quotes_gpc is enabled)
-if (get_magic_quotes_gpc())
+if (PHP_VERSION_ID < 70400 && function_exists('get_magic_quotes_gpc') && get_magic_quotes_gpc())
 {
 	function stripslashes_array($array)
 	{
@@ -106,6 +106,8 @@ define('PUN_ADMIN', 1);
 define('PUN_MOD', 2);
 define('PUN_GUEST', 3);
 define('PUN_MEMBER', 4);
+define('PUN_GUEST_USER_ID', 0);
+define('PUN_ROOT_ADMIN_USER_ID', 1);
 
 // Load DB abstraction layer and try to connect
 require PUN_ROOT.'include/dblayer/common_db.php';
@@ -1556,7 +1558,7 @@ switch ($stage)
 				else if (preg_match('%(?:\[/?(?:b|u|s|ins|del|em|i|h|colou?r|quote|code|img|url|email|list|\*)\]|\[(?:img|url|quote|list)=)%i', $username))
 					$errors[$id][] = $lang_update['Username BBCode error'];
 
-				$result = $db->query('SELECT username FROM '.$db->prefix.'users WHERE (UPPER(username)=UPPER(\''.$db->escape($username).'\') OR UPPER(username)=UPPER(\''.$db->escape(ucp_preg_replace('%[^\p{L}\p{N}]%u', '', $username)).'\')) AND id>1') or error('Unable to fetch user info', __FILE__, __LINE__, $db->error());
+				$result = $db->query('SELECT username FROM '.$db->prefix.'users WHERE (UPPER(username)=UPPER(\''.$db->escape($username).'\') OR UPPER(username)=UPPER(\''.$db->escape(ucp_preg_replace('%[^\p{L}\p{N}]%u', '', $username)).'\')) AND id>'.PUN_GUEST_USER_ID) or error('Unable to fetch user info', __FILE__, __LINE__, $db->error());
 
 				if ($db->num_rows($result))
 				{

@@ -88,7 +88,7 @@ else if (isset($_GET['email']))
 		message($lang_common['No permission'], false, '403 Forbidden');
 
 	$recipient_id = intval($_GET['email']);
-	if ($recipient_id < 2)
+	if ($recipient_id <= PUN_GUEST_USER_ID)
 		message($lang_common['Bad request'], false, '404 Not Found');
 
 	$result = $db->query('SELECT username, email, email_setting FROM '.$db->prefix.'users WHERE id='.$recipient_id) or error('Unable to fetch user info', __FILE__, __LINE__, $db->error());

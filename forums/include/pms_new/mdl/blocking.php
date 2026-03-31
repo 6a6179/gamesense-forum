@@ -12,7 +12,7 @@ if (!defined('PUN') || !defined('PUN_PMS_NEW'))
 define('PUN_PMS_LOADED', 1);
 
 $uid = intval(pmsn_get_var('uid', 0));
-if ($uid < 2)
+if ($uid <= PUN_GUEST_USER_ID)
 	message($lang_common['Bad request'], false, '404 Not Found');
 
 $csrf_token = pmsn_csrf_token($uid);

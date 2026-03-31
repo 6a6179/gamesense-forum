@@ -109,7 +109,7 @@ if ($pun_user['messages_enable'] == 1 && $pun_user['g_pm'] == 1)
 			$pmsn_f_cnt = '<span><a href="pmsnew.php?mdl=send&amp;tid='.$tid.$sidamp.'">'.$lang_pmsn['Send d'].'</a></span>'.$pmsn_f_cnt;
 }
 
-if ($cur_topic['num_posts'] < $pun_config['o_pms_min_kolvo'] && $cur_topic['group_id'] != PUN_ADMIN && $cur_topic['userid'] > 1 && $cur_topic['topic_st'] < 2 && $cur_topic['topic_to'] < 2)
+if ($cur_topic['num_posts'] < $pun_config['o_pms_min_kolvo'] && $cur_topic['group_id'] != PUN_ADMIN && $cur_topic['userid'] > PUN_GUEST_USER_ID && $cur_topic['topic_st'] < 2 && $cur_topic['topic_to'] < 2)
 	$psmnwarn = "\t\t\t\t\t\t\t".'<div class="psmnwarn">'."\n\t\t\t\t\t\t\t\t".sprintf($lang_pmsn['Warn'], $pun_config['o_pms_min_kolvo'])."\n\t\t\t\t\t\t\t".'</div>'."\n";
 else
 	$psmnwarn = '';
@@ -178,7 +178,7 @@ for ($i = 0;$cur_post_id = $db->result($result, $i);$i++)
 
 $post_view_new = array();
 
-$result = $db->query('SELECT u.email, u.title, u.url, u.location, u.signature, u.email_setting, u.num_posts, u.registered, u.admin_note, p.id, p.poster AS username, p.poster_id, p.message, p.hide_smilies, p.posted, p.edited, p.edited_by, p.post_new, g.g_id, g.g_user_title, o.user_id AS is_online FROM '.$db->prefix.'pms_new_posts AS p LEFT JOIN '.$db->prefix.'users AS u ON u.id=p.poster_id LEFT JOIN '.$db->prefix.'groups AS g ON g.g_id=u.group_id LEFT JOIN '.$db->prefix.'online AS o ON (o.user_id=u.id AND o.user_id!=1 AND o.idle=0) WHERE p.id IN ('.implode(',', $post_ids).') ORDER BY p.id', true) or error('Unable to fetch pms_new_posts info', __FILE__, __LINE__, $db->error());
+$result = $db->query('SELECT u.email, u.title, u.url, u.location, u.signature, u.email_setting, u.num_posts, u.registered, u.admin_note, p.id, p.poster AS username, p.poster_id, p.message, p.hide_smilies, p.posted, p.edited, p.edited_by, p.post_new, g.g_id, g.g_user_title, o.user_id AS is_online FROM '.$db->prefix.'pms_new_posts AS p LEFT JOIN '.$db->prefix.'users AS u ON u.id=p.poster_id LEFT JOIN '.$db->prefix.'groups AS g ON g.g_id=u.group_id LEFT JOIN '.$db->prefix.'online AS o ON (o.user_id=u.id AND o.user_id!='.PUN_GUEST_USER_ID.' AND o.idle=0) WHERE p.id IN ('.implode(',', $post_ids).') ORDER BY p.id', true) or error('Unable to fetch pms_new_posts info', __FILE__, __LINE__, $db->error());
 while ($cur_post = $db->fetch_assoc($result))
 {
 	$post_count++;

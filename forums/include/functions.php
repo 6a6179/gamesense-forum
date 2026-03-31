@@ -38,14 +38,14 @@ function check_cookie(&$pun_user)
 	}
 
 	// If it has a non-guest user, and hasn't expired
-	if (isset($cookie) && $cookie['user_id'] > 1 && $cookie['expiration_time'] > $now)
+	if (isset($cookie) && $cookie['user_id'] > PUN_GUEST_USER_ID && $cookie['expiration_time'] > $now)
 	{
 		// If the cookie has been tampered with
 		$is_authorized = pun_hash_equals(forum_hmac($cookie['user_id'].'|'.$cookie['expiration_time'], $cookie_seed.'_cookie_hash'), $cookie['cookie_hash']);
 		if (!$is_authorized)
 		{
 			$expire = $now + 31536000; // The cookie expires after a year
-			pun_setcookie(1, pun_hash(uniqid(rand(), true)), $expire);
+			pun_setcookie(PUN_GUEST_USER_ID, pun_hash(uniqid(rand(), true)), $expire);
 			set_default_user();
 
 			return;
@@ -60,7 +60,7 @@ function check_cookie(&$pun_user)
 		if (!isset($pun_user['id']) || !$is_authorized)
 		{
 			$expire = $now + 31536000; // The cookie expires after a year
-			pun_setcookie(1, pun_hash(uniqid(rand(), true)), $expire);
+			pun_setcookie(PUN_GUEST_USER_ID, pun_hash(uniqid(rand(), true)), $expire);
 			set_default_user();
 
 			return;
@@ -272,7 +272,7 @@ function set_default_user()
 	$remote_addr = get_remote_address();
 
 	// Fetch guest user
-	$result = $db->query('SELECT u.*, g.*, o.logged, o.last_post, o.last_search FROM '.$db->prefix.'users AS u INNER JOIN '.$db->prefix.'groups AS g ON u.group_id=g.g_id LEFT JOIN '.$db->prefix.'online AS o ON o.ident=\''.$db->escape($remote_addr).'\' WHERE u.id=1') or error('Unable to fetch guest information', __FILE__, __LINE__, $db->error());
+	$result = $db->query('SELECT u.*, g.*, o.logged, o.last_post, o.last_search FROM '.$db->prefix.'users AS u INNER JOIN '.$db->prefix.'groups AS g ON u.group_id=g.g_id LEFT JOIN '.$db->prefix.'online AS o ON o.ident=\''.$db->escape($remote_addr).'\' WHERE u.id='.PUN_GUEST_USER_ID) or error('Unable to fetch guest information', __FILE__, __LINE__, $db->error());
 	if (!$db->num_rows($result))
 		exit('Unable to fetch guest information. Your database must contain both a guest user and a guest user group.');
 
@@ -291,11 +291,11 @@ function set_default_user()
 			case 'mysql_innodb':
 			case 'mysqli_innodb':
 			case 'sqlite':
-				$db->query('REPLACE INTO '.$db->prefix.'online (user_id, ident, logged) VALUES(1, \''.$db->escape($remote_addr).'\', '.$pun_user['logged'].')') or error('Unable to insert into online list', __FILE__, __LINE__, $db->error());
+				$db->query('REPLACE INTO '.$db->prefix.'online (user_id, ident, logged) VALUES('.PUN_GUEST_USER_ID.', \''.$db->escape($remote_addr).'\', '.$pun_user['logged'].')') or error('Unable to insert into online list', __FILE__, __LINE__, $db->error());
 				break;
 
 			default:
-				$db->query('INSERT INTO '.$db->prefix.'online (user_id, ident, logged) SELECT 1, \''.$db->escape($remote_addr).'\', '.$pun_user['logged'].' WHERE NOT EXISTS (SELECT 1 FROM '.$db->prefix.'online WHERE ident=\''.$db->escape($remote_addr).'\')') or error('Unable to insert into online list', __FILE__, __LINE__, $db->error());
+				$db->query('INSERT INTO '.$db->prefix.'online (user_id, ident, logged) SELECT '.PUN_GUEST_USER_ID.', \''.$db->escape($remote_addr).'\', '.$pun_user['logged'].' WHERE NOT EXISTS (SELECT 1 FROM '.$db->prefix.'online WHERE ident=\''.$db->escape($remote_addr).'\')') or error('Unable to insert into online list', __FILE__, __LINE__, $db->error());
 				break;
 		}
 	}
@@ -485,7 +485,7 @@ function check_username($username, $exclude_id = null)
 	// Check that the username (or a too similar username) is not already registered
 	$query = (!is_null($exclude_id)) ? ' AND id!='.$exclude_id : '';
 
-	$result = $db->query('SELECT username FROM '.$db->prefix.'users WHERE (UPPER(username)=UPPER(\''.$db->escape($username).'\') OR UPPER(username)=UPPER(\''.$db->escape(ucp_preg_replace('%[^\p{L}\p{N}]%u', '', $username)).'\')) AND id>1'.$query) or error('Unable to fetch user info', __FILE__, __LINE__, $db->error());
+	$result = $db->query('SELECT username FROM '.$db->prefix.'users WHERE (UPPER(username)=UPPER(\''.$db->escape($username).'\') OR UPPER(username)=UPPER(\''.$db->escape(ucp_preg_replace('%[^\p{L}\p{N}]%u', '', $username)).'\')) AND id>'.PUN_GUEST_USER_ID.$query) or error('Unable to fetch user info', __FILE__, __LINE__, $db->error());
 
 	if ($db->num_rows($result))
 	{
@@ -1964,7 +1964,7 @@ function forum_list_styles()
 	$d = dir(PUN_ROOT.'style');
 	while (($entry = $d->read()) !== false)
 	{
-		if ($entry{0} == '.')
+		if ($entry[0] == '.')
 			continue;
 
 		if (substr($entry, -4) == '.css')
@@ -1988,7 +1988,7 @@ function forum_list_langs()
 	$d = dir(PUN_ROOT.'lang');
 	while (($entry = $d->read()) !== false)
 	{
-		if ($entry{0} == '.')
+		if ($entry[0] == '.')
 			continue;
 
 		if (is_dir(PUN_ROOT.'lang/'.$entry) && file_exists(PUN_ROOT.'lang/'.$entry.'/common.php'))
@@ -2192,7 +2192,7 @@ function url_valid($url)
 		return FALSE;	// Unrecognised URI scheme. Default to FALSE.
 	}
 	// Validate host name conforms to DNS "dot-separated-parts".
-	if ($m{'regname'}) // If host regname specified, check for DNS conformance.
+	if ($m['regname']) // If host regname specified, check for DNS conformance.
 	{
 		if (!preg_match('/# HTTP DNS host name.
 			^					   # Anchor to beginning of string.
@@ -2221,10 +2221,18 @@ function url_valid($url)
 //
 // This function takes care of possibly disabled unicode properties in PCRE builds
 //
+function forum_build_preg_callback($code)
+{
+	return function ($matches) use ($code)
+	{
+		return eval('return '.$code.';');
+	};
+}
+
 function ucp_preg_replace($pattern, $replace, $subject, $callback = false)
 {
 	if($callback)
-		$replaced = preg_replace_callback($pattern, create_function('$matches', 'return '.$replace.';'), $subject);
+		$replaced = preg_replace_callback($pattern, forum_build_preg_callback($replace), $subject);
 	else
 		$replaced = preg_replace($pattern, $replace, $subject);
 

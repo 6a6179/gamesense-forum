@@ -50,7 +50,8 @@ if (defined('UTF8_USE_MBSTRING'))
 	* Also need to check we have the correct internal mbstring
 	* encoding
 	*/
-	if (ini_get('mbstring.func_overload') & MB_OVERLOAD_STRING)
+	$mbstring_func_overload = (int) ini_get('mbstring.func_overload');
+	if ((defined('MB_OVERLOAD_STRING') && ($mbstring_func_overload & MB_OVERLOAD_STRING)) || (!defined('MB_OVERLOAD_STRING') && ($mbstring_func_overload & 2)))
 		trigger_error('String functions are overloaded by mbstring', E_USER_ERROR);
 
 	mb_language('uni');

@@ -37,6 +37,63 @@ CREATE TABLE `gs_bans` (
 -- --------------------------------------------------------
 
 --
+-- Table structure for table `gs_ajax_chat_bans`
+--
+
+CREATE TABLE `gs_ajax_chat_bans` (
+  `userID` int NOT NULL,
+  `userName` varchar(64) CHARACTER SET utf8mb3 COLLATE utf8mb3_bin NOT NULL,
+  `dateTime` datetime NOT NULL,
+  `ip` varbinary(16) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_bin;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `gs_ajax_chat_invitations`
+--
+
+CREATE TABLE `gs_ajax_chat_invitations` (
+  `userID` int NOT NULL,
+  `channel` int NOT NULL,
+  `dateTime` datetime NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_bin;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `gs_ajax_chat_messages`
+--
+
+CREATE TABLE `gs_ajax_chat_messages` (
+  `id` int NOT NULL,
+  `userID` int NOT NULL,
+  `userName` varchar(64) CHARACTER SET utf8mb3 COLLATE utf8mb3_bin NOT NULL,
+  `userRole` int NOT NULL,
+  `channel` int NOT NULL,
+  `dateTime` datetime NOT NULL,
+  `ip` varbinary(16) NOT NULL,
+  `text` text CHARACTER SET utf8mb3 COLLATE utf8mb3_bin
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_bin;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `gs_ajax_chat_online`
+--
+
+CREATE TABLE `gs_ajax_chat_online` (
+  `userID` int NOT NULL,
+  `userName` varchar(64) CHARACTER SET utf8mb3 COLLATE utf8mb3_bin NOT NULL,
+  `userRole` int NOT NULL,
+  `channel` int NOT NULL,
+  `dateTime` datetime NOT NULL,
+  `ip` varbinary(16) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_bin;
+
+-- --------------------------------------------------------
+
+--
 -- Table structure for table `gs_categories`
 --
 
@@ -302,7 +359,7 @@ INSERT INTO `gs_groups` (`g_id`, `g_title`, `g_user_title`, `g_promote_min_posts
 --
 
 CREATE TABLE `gs_online` (
-  `user_id` int UNSIGNED NOT NULL DEFAULT '1',
+  `user_id` int UNSIGNED NOT NULL DEFAULT '0',
   `ident` varchar(200) NOT NULL DEFAULT '',
   `logged` int UNSIGNED NOT NULL DEFAULT '0',
   `idle` tinyint(1) NOT NULL DEFAULT '0',
@@ -313,9 +370,6 @@ CREATE TABLE `gs_online` (
 --
 -- Dumping data for table `gs_online`
 --
-
-INSERT INTO `gs_online` (`user_id`, `ident`, `logged`, `idle`, `last_post`, `last_search`) VALUES
-(2, 'admin', 1665286643, 0, NULL, NULL);
 
 -- --------------------------------------------------------
 
@@ -337,7 +391,7 @@ CREATE TABLE `gs_pms_new_block` (
 CREATE TABLE `gs_pms_new_posts` (
   `id` int UNSIGNED NOT NULL,
   `poster` varchar(200) NOT NULL DEFAULT '',
-  `poster_id` int UNSIGNED NOT NULL DEFAULT '1',
+  `poster_id` int UNSIGNED NOT NULL DEFAULT '0',
   `poster_ip` varchar(39) DEFAULT NULL,
   `message` text,
   `hide_smilies` tinyint(1) NOT NULL DEFAULT '0',
@@ -379,7 +433,7 @@ CREATE TABLE `gs_pms_new_topics` (
 CREATE TABLE `gs_posts` (
   `id` int UNSIGNED NOT NULL,
   `poster` varchar(200) NOT NULL DEFAULT '',
-  `poster_id` int UNSIGNED NOT NULL DEFAULT '1',
+  `poster_id` int UNSIGNED NOT NULL DEFAULT '0',
   `poster_ip` varchar(39) DEFAULT NULL,
   `poster_email` varchar(80) DEFAULT NULL,
   `message` mediumtext,
@@ -425,9 +479,6 @@ CREATE TABLE `gs_search_cache` (
 -- Dumping data for table `gs_search_cache`
 --
 
-INSERT INTO `gs_search_cache` (`id`, `ident`, `search_data`) VALUES
-(655742132, 'premium', 'a:6:{s:10:\"search_ids\";s:30:\"a:2:{i:0;s:1:\"8\";i:1;s:1:\"3\";}\";s:8:\"num_hits\";i:2;s:7:\"sort_by\";i:0;s:8:\"sort_dir\";s:4:\"DESC\";s:7:\"show_as\";s:6:\"topics\";s:11:\"search_type\";a:3:{i:0;s:6:\"action\";i:1;s:16:\"show_user_topics\";i:2;i:2;}}');
-
 -- --------------------------------------------------------
 
 --
@@ -454,33 +505,6 @@ CREATE TABLE `gs_search_words` (
 --
 -- Dumping data for table `gs_search_words`
 --
-
-INSERT INTO `gs_search_words` (`id`, `word`) VALUES
-(1, 'looking'),
-(2, 'guess'),
-(3, 'install'),
-(4, 'fluxbb'),
-(5, 'appears'),
-(6, 'worked'),
-(7, 'log'),
-(8, 'head'),
-(9, 'administration'),
-(10, 'control'),
-(11, 'panel'),
-(12, 'configure'),
-(13, 'forum'),
-(18, 'niggers'),
-(19, 'nigger'),
-(20, 'media'),
-(21, 'eee'),
-(27, 'body'),
-(28, 'style'),
-(29, 'background-image'),
-(30, 'url'),
-(31, 'imgur'),
-(32, 'a1xpzvc'),
-(33, 'png'),
-(34, 'test');
 
 -- --------------------------------------------------------
 
@@ -617,8 +641,7 @@ CREATE TABLE `gs_users` (
 --
 
 INSERT INTO `gs_users` (`id`, `group_id`, `username`, `password`, `email`, `title`, `by`, `csgo`, `realname`, `url`, `jabber`, `icq`, `msn`, `aim`, `yahoo`, `location`, `signature`, `disp_topics`, `disp_posts`, `email_setting`, `notify_with_post`, `auto_notify`, `show_smilies`, `show_img`, `show_img_sig`, `show_avatars`, `show_sig`, `timezone`, `dst`, `time_format`, `date_format`, `language`, `style`, `num_posts`, `last_post`, `last_search`, `last_email_sent`, `last_report_sent`, `registered`, `registration_ip`, `last_visit`, `admin_note`, `activate_string`, `activate_key`, `messages_enable`, `messages_email`, `messages_flag`, `messages_new`, `messages_all`, `pmsn_last_post`, `beta`, `img_key`, `ga`, `ga_enabled`, `parts`, `newparts`, `hwid`, `hwid_new`, `hwid_ip`, `hwid_ip_new`, `hwid_reason`, `discord`, `discord_new`, `discord_ip`, `discord_ip_new`, `discord_reason`, `used_version`) VALUES
-(1, 3, 'Guest', 'Guest', 'Guest', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 1, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0, 0, 'English', 'Cobalt.min', 0, NULL, NULL, NULL, NULL, 0, '0.0.0.0', 0, NULL, NULL, NULL, 1, 0, 0, 0, 0, NULL, NULL, NULL, NULL, '0', NULL, NULL, '', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL),
-(2, 1, 'admin', 'd4e8e6deaa7b1f8381e09e3e6b83e36f0b681c5c', 'admin@website.com', NULL, NULL, '2023-12-23 07:15:15', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 1, 0, 0, 1, 1, 1, 1, 1, -6, 0, 0, 0, 'English', 'Cobalt.min', 15, 1664775471, NULL, NULL, NULL, 1660902341, '108.162.216.41', 1665286629, NULL, NULL, NULL, 1, 0, 0, 0, 0, 1661250566, NULL, NULL, NULL, '0', 'HWID: 0\n', NULL, '0', NULL, NULL, '209.58.159.99', NULL, NULL, NULL, NULL, NULL, NULL, '7');
+(0, 3, 'Guest', 'Guest', 'Guest', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 1, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0, 0, 'English', 'Cobalt.min', 0, NULL, NULL, NULL, NULL, 0, '0.0.0.0', 0, NULL, NULL, NULL, 1, 0, 0, 0, 0, NULL, NULL, NULL, NULL, '0', NULL, NULL, '', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
 
 -- --------------------------------------------------------
 
@@ -650,6 +673,36 @@ INSERT INTO `gs_versions` (`id`, `name`, `version`) VALUES
 ALTER TABLE `gs_bans`
   ADD PRIMARY KEY (`id`),
   ADD KEY `gs_bans_username_idx` (`username`(25));
+
+--
+-- Indexes for table `gs_ajax_chat_bans`
+--
+ALTER TABLE `gs_ajax_chat_bans`
+  ADD PRIMARY KEY (`userID`),
+  ADD KEY `gs_ajax_chat_bans_user_name_idx` (`userName`),
+  ADD KEY `gs_ajax_chat_bans_date_time_idx` (`dateTime`);
+
+--
+-- Indexes for table `gs_ajax_chat_invitations`
+--
+ALTER TABLE `gs_ajax_chat_invitations`
+  ADD PRIMARY KEY (`userID`,`channel`),
+  ADD KEY `gs_ajax_chat_invitations_date_time_idx` (`dateTime`);
+
+--
+-- Indexes for table `gs_ajax_chat_messages`
+--
+ALTER TABLE `gs_ajax_chat_messages`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `gs_ajax_chat_messages_message_condition_idx` (`id`,`channel`,`dateTime`),
+  ADD KEY `gs_ajax_chat_messages_date_time_idx` (`dateTime`);
+
+--
+-- Indexes for table `gs_ajax_chat_online`
+--
+ALTER TABLE `gs_ajax_chat_online`
+  ADD PRIMARY KEY (`userID`),
+  ADD KEY `gs_ajax_chat_online_user_name_idx` (`userName`);
 
 --
 -- Indexes for table `gs_categories`
@@ -811,7 +864,13 @@ ALTER TABLE `gs_versions`
 -- AUTO_INCREMENT for table `gs_bans`
 --
 ALTER TABLE `gs_bans`
-  MODIFY `id` int UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=24;
+  MODIFY `id` int UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=1;
+
+--
+-- AUTO_INCREMENT for table `gs_ajax_chat_messages`
+--
+ALTER TABLE `gs_ajax_chat_messages`
+  MODIFY `id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=1;
 
 --
 -- AUTO_INCREMENT for table `gs_categories`
@@ -829,7 +888,7 @@ ALTER TABLE `gs_censoring`
 -- AUTO_INCREMENT for table `gs_codes`
 --
 ALTER TABLE `gs_codes`
-  MODIFY `id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+  MODIFY `id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=1;
 
 --
 -- AUTO_INCREMENT for table `gs_forums`
@@ -847,19 +906,19 @@ ALTER TABLE `gs_groups`
 -- AUTO_INCREMENT for table `gs_pms_new_posts`
 --
 ALTER TABLE `gs_pms_new_posts`
-  MODIFY `id` int UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
+  MODIFY `id` int UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=1;
 
 --
 -- AUTO_INCREMENT for table `gs_pms_new_topics`
 --
 ALTER TABLE `gs_pms_new_topics`
-  MODIFY `id` int UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
+  MODIFY `id` int UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=1;
 
 --
 -- AUTO_INCREMENT for table `gs_posts`
 --
 ALTER TABLE `gs_posts`
-  MODIFY `id` int UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=23;
+  MODIFY `id` int UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=1;
 
 --
 -- AUTO_INCREMENT for table `gs_reports`
@@ -871,13 +930,13 @@ ALTER TABLE `gs_reports`
 -- AUTO_INCREMENT for table `gs_search_words`
 --
 ALTER TABLE `gs_search_words`
-  MODIFY `id` int UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=38;
+  MODIFY `id` int UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=1;
 
 --
 -- AUTO_INCREMENT for table `gs_topics`
 --
 ALTER TABLE `gs_topics`
-  MODIFY `id` int UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=14;
+  MODIFY `id` int UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=1;
 
 --
 -- AUTO_INCREMENT for table `gs_updates`
@@ -889,7 +948,7 @@ ALTER TABLE `gs_updates`
 -- AUTO_INCREMENT for table `gs_users`
 --
 ALTER TABLE `gs_users`
-  MODIFY `id` int UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=13;
+  MODIFY `id` int UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=1;
 
 --
 -- AUTO_INCREMENT for table `gs_versions`

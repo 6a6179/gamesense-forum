@@ -4,14 +4,14 @@ define('PUN_ROOT', dirname(__FILE__).'/forums/');
 require PUN_ROOT.'include/common.php';
 
 if($_POST['redirect'] == "forums"){
-	
+
 	if (!$pun_user['is_guest'])
 {
-	
+
 	header("Location: forums/");
-	
+
 } else {
-	
+
 
 
 // user is a guest, so we need to check if they have cookies set
@@ -20,11 +20,11 @@ if($_POST['redirect'] == "forums"){
 //		header("Location: forums/");
 //		exit;
 //	}
-	
 
 
 
-	
+
+
 ?>
 <html lang="en-US"><head>
 	<meta charset="UTF-8">
@@ -67,7 +67,7 @@ if($_POST['redirect'] == "forums"){
 	<div id="title">
 		<h1>game<span>sense</span></h1>
 	</div>
-	<noscript><h1 data-translate="turn_on_js" style="color:#bd2426;">Please turn JavaScript on and reload the page.</h1></noscript> //added jjavascript load timer
+	<noscript><h1 data-translate="turn_on_js" style="color:#bd2426;">Please turn JavaScript on and reload the page.</h1></noscript>
 	<div id="gs-content" style="display: block;">
 		<p>Please wait...</p>
 		<div class="trifecta">
@@ -80,7 +80,7 @@ if($_POST['redirect'] == "forums"){
 		</form>
 	</div>
 </div></div></div>
-    
+
 
 </body></html>
 
@@ -95,7 +95,7 @@ if($_POST['redirect'] == "forums"){
 
 	<!-- icon -->
 
-	<link rel="icon" href="favicon.ico" /> 
+	<link rel="icon" href="favicon.ico" />
 <!--[if IE]><link rel="shortcut icon" type="image/x-icon" href="favicon.ico" /><![endif]-->
 	<!-- styles -->
 	<link href="https://fonts.googleapis.com/css?family=Raleway:900,400" rel="stylesheet" type="text/css">
@@ -117,11 +117,11 @@ if($_POST['redirect'] == "forums"){
 </head>
 <body>
 <form id="form1" action="" method="post">
-   
+
     <input type="hidden" name="redirect" value="forums"/>
 </form>
-				
-		
+
+
 <script>
 	window.sr = ScrollReveal();
 	sr.reveal('#header', {
@@ -134,5 +134,5 @@ if($_POST['redirect'] == "forums"){
 
 </body></html><?php
 
-} 
+}
  ?>

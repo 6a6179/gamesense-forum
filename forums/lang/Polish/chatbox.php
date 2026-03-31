@@ -3,8 +3,8 @@
 // Language definitions used in chatbox.php
 $lang_chatbox = array(
 
-'Page_title'				=>	'ChatBox',
-'Chatbox'					=>	'ChatBox',
+'Page_title'				=>	'Chat',
+'Chatbox'					=>	'Chat',
 'Posts'						=>	' wiadomości',
 'Sending'					=>	'Wysyłanie...',
 

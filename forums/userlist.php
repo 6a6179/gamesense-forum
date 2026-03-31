@@ -42,7 +42,7 @@ if ($show_group > -1)
 	$where_sql[] = 'u.group_id='.$show_group;
 
 // Fetch user count
-$result = $db->query('SELECT COUNT(id) FROM '.$db->prefix.'users AS u WHERE u.id>1 AND u.group_id!='.PUN_UNVERIFIED.(!empty($where_sql) ? ' AND '.implode(' AND ', $where_sql) : '')) or error('Unable to fetch user list count', __FILE__, __LINE__, $db->error());
+$result = $db->query('SELECT COUNT(id) FROM '.$db->prefix.'users AS u WHERE u.id>'.PUN_GUEST_USER_ID.' AND u.group_id!='.PUN_UNVERIFIED.(!empty($where_sql) ? ' AND '.implode(' AND ', $where_sql) : '')) or error('Unable to fetch user list count', __FILE__, __LINE__, $db->error());
 $num_users = $db->result($result);
 
 // Determine the user offset (based on $_GET['p'])
@@ -137,7 +137,7 @@ while ($cur_group = $db->fetch_assoc($result))
 <?php
 
 // Retrieve a list of user IDs, LIMIT is (really) expensive so we only fetch the IDs here then later fetch the remaining data
-$result = $db->query('SELECT u.id FROM '.$db->prefix.'users AS u WHERE u.id>1 AND u.group_id!='.PUN_UNVERIFIED.(!empty($where_sql) ? ' AND '.implode(' AND ', $where_sql) : '').' ORDER BY '.$sort_by.' '.$sort_dir.', u.id ASC LIMIT '.$start_from.', 50') or error('Unable to fetch user IDs', __FILE__, __LINE__, $db->error());
+$result = $db->query('SELECT u.id FROM '.$db->prefix.'users AS u WHERE u.id>'.PUN_GUEST_USER_ID.' AND u.group_id!='.PUN_UNVERIFIED.(!empty($where_sql) ? ' AND '.implode(' AND ', $where_sql) : '').' ORDER BY '.$sort_by.' '.$sort_dir.', u.id ASC LIMIT '.$start_from.', 50') or error('Unable to fetch user IDs', __FILE__, __LINE__, $db->error());
 
 if ($db->num_rows($result))
 {

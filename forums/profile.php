@@ -18,7 +18,7 @@ $ga=new GoogleAuthenticator;
 $action = isset($_GET['action']) ? $_GET['action'] : null;
 $section = isset($_GET['section']) ? $_GET['section'] : null;
 $id = isset($_GET['id']) ? intval($_GET['id']) : 0;
-if ($id < 2)
+if ($id <= PUN_GUEST_USER_ID)
 	message($lang_common['Bad request'], false, '404 Not Found');
 if($pun_user['group_id'] == 4 && $pun_user['id'] != $id){
 	message($lang_common['No permission']);
@@ -109,7 +109,7 @@ if ($action == 'change_pass')
 			if ($reset_key != '' && $reset_token != '' && $reset_key == $cur_user['activate_key'] && !empty($cur_user['activate_string']) && forum_password_verify($reset_token, $cur_user['activate_string']) && !$reset_expired)
 				$authorized = true;
 		}
-		else if (!empty($cur_user['password']) && ($pun_user['is_admmod'] || forum_password_verify($old_password, $cur_user['password'], $cur_user['salt'])))
+		else if (!empty($cur_user['password']) && ($pun_user['is_admmod'] || forum_password_verify($old_password, $cur_user['password'], isset($cur_user['salt']) ? $cur_user['salt'] : null)))
 			$authorized = true;
 
 		if (!$authorized)
@@ -117,7 +117,7 @@ if ($action == 'change_pass')
 
 		$new_password_hash = forum_password_hash($new_password1);
 
-		$db->query('UPDATE '.$db->prefix.'users SET password=\''.$db->escape($new_password_hash).'\', activate_string=NULL, activate_key=NULL'.(!empty($cur_user['salt']) ? ', salt=NULL' : '').' WHERE id='.$id) or error('Unable to update password', __FILE__, __LINE__, $db->error());
+		$db->query('UPDATE '.$db->prefix.'users SET password=\''.$db->escape($new_password_hash).'\', activate_string=NULL, activate_key=NULL'.((array_key_exists('salt', $cur_user) && !empty($cur_user['salt'])) ? ', salt=NULL' : '').' WHERE id='.$id) or error('Unable to update password', __FILE__, __LINE__, $db->error());
 
 		if (!$pun_user['is_guest'] && $pun_user['id'] == $id)
 			pun_setcookie($pun_user['id'], $new_password_hash, time() + $pun_config['o_timeout_visit']);
@@ -210,12 +210,14 @@ else if ($action == 'change_email')
 		if (!forum_password_verify($_POST['req_password'], $pun_user['password'], isset($pun_user['salt']) ? $pun_user['salt'] : null))
 			message($lang_profile['Wrong pass']);
 
-		if (!empty($pun_user['salt']) || forum_password_needs_rehash($pun_user['password']))
+		if ((array_key_exists('salt', $pun_user) && !empty($pun_user['salt'])) || forum_password_needs_rehash($pun_user['password']))
 		{
 			$new_password_hash = forum_password_hash($_POST['req_password']);
-			$db->query('UPDATE '.$db->prefix.'users SET password=\''.$db->escape($new_password_hash).'\', salt=NULL WHERE id='.$pun_user['id']) or error('Unable to update user password', __FILE__, __LINE__, $db->error());
+			$salt_sql = array_key_exists('salt', $pun_user) ? ', salt=NULL' : '';
+			$db->query('UPDATE '.$db->prefix.'users SET password=\''.$db->escape($new_password_hash).'\''.$salt_sql.' WHERE id='.$pun_user['id']) or error('Unable to update user password', __FILE__, __LINE__, $db->error());
 			$pun_user['password'] = $new_password_hash;
-			$pun_user['salt'] = null;
+			if (array_key_exists('salt', $pun_user))
+				$pun_user['salt'] = null;
 			pun_setcookie($pun_user['id'], $new_password_hash, time() + $pun_config['o_timeout_visit']);
 		}
 			
@@ -738,7 +740,7 @@ else if (isset($_POST['delete_user']) || isset($_POST['delete_user_comply']))
 		}
 		else
 			// Set all his/her posts to guest
-			$db->query('UPDATE '.$db->prefix.'posts SET poster_id=1 WHERE poster_id='.$id) or error('Unable to update posts', __FILE__, __LINE__, $db->error());
+			$db->query('UPDATE '.$db->prefix.'posts SET poster_id='.PUN_GUEST_USER_ID.' WHERE poster_id='.$id) or error('Unable to update posts', __FILE__, __LINE__, $db->error());
 
 		// Delete the user
 		$db->query('DELETE FROM '.$db->prefix.'users WHERE id='.$id) or error('Unable to delete user', __FILE__, __LINE__, $db->error());
@@ -1398,6 +1400,9 @@ exit();
 		$db->query('UPDATE '.$db->prefix.'topics SET last_poster=\''.$db->escape($form['username']).'\' WHERE last_poster=\''.$db->escape($old_username).'\'') or error('Unable to update topics', __FILE__, __LINE__, $db->error());
 		$db->query('UPDATE '.$db->prefix.'forums SET last_poster=\''.$db->escape($form['username']).'\' WHERE last_poster=\''.$db->escape($old_username).'\'') or error('Unable to update forums', __FILE__, __LINE__, $db->error());
 		$db->query('UPDATE '.$db->prefix.'online SET ident=\''.$db->escape($form['username']).'\' WHERE ident=\''.$db->escape($old_username).'\'') or error('Unable to update online list', __FILE__, __LINE__, $db->error());
+		$db->query('UPDATE '.$db->prefix.'ajax_chat_messages SET userName=\''.$db->escape($form['username']).'\' WHERE userID='.$id) or error('Unable to update ajax_chat_messages', __FILE__, __LINE__, $db->error());
+		$db->query('UPDATE '.$db->prefix.'ajax_chat_online SET userName=\''.$db->escape($form['username']).'\' WHERE userID='.$id) or error('Unable to update ajax_chat_online', __FILE__, __LINE__, $db->error());
+		$db->query('UPDATE '.$db->prefix.'ajax_chat_bans SET userName=\''.$db->escape($form['username']).'\' WHERE userID='.$id) or error('Unable to update ajax_chat_bans', __FILE__, __LINE__, $db->error());
 
 		// If the user is a moderator or an administrator we have to update the moderator lists
 		$result = $db->query('SELECT group_id FROM '.$db->prefix.'users WHERE id='.$id) or error('Unable to fetch user info', __FILE__, __LINE__, $db->error());
@@ -1686,7 +1691,7 @@ if ($pun_user['id'] != $id &&																	// If we aren't the user (i.e. edi
 		$cur_user = $db->fetch_assoc($result);
 		$cur_user1 = $cur_user['by'];
 		
-		if($cur_user1 != null){
+		if($cur_user1 > PUN_GUEST_USER_ID){
 			$result = $db->query("SELECT * FROM `gs_users` WHERE `id` = ".$cur_user1) or error('Unable to fetch user', __FILE__, __LINE__, $db->error());
 		
 		if ($db->num_rows($result))
@@ -1976,15 +1981,15 @@ else
 		$cur_user = $db->fetch_assoc($result);
 		$cur_user1 = $cur_user['by'];
 		
-		if($cur_user1 != null){
-			$result = $db->query("SELECT * FROM `gs_users` WHERE `id` = ".$cur_user1) or error('Unable to fetch user', __FILE__, __LINE__, $db->error());
+			if($cur_user1 > PUN_GUEST_USER_ID){
+				$result = $db->query("SELECT * FROM `gs_users` WHERE `id` = ".$cur_user1) or error('Unable to fetch user', __FILE__, __LINE__, $db->error());
 		
 		if ($db->num_rows($result))
 	{
 			$invby = $db->fetch_assoc($result);
 			$invby = $invby['username'];
 			
-			echo "<p>Invited by <a href='profile.php?id=$cur_user1'>$invby</a></p>";
+				echo "<p>Invited by <a href='profile.php?id=$cur_user1'>$invby</a></p>";
 			
 			
 	}
@@ -2533,7 +2538,7 @@ $resultdate = format_time($date->getTimestamp(), false, null, null, false, true)
 						
 						
 						<td class="tc3"><?php echo $item['code'] ?></td>
-							<td class="tc3"><?php if($userused == 1){
+							<td class="tc3"><?php if($userused == 1 && $usercode > PUN_GUEST_USER_ID){
 
 $usercodel = $db->query("SELECT `username`, `group_id` FROM `gs_users` WHERE `id`='$usercode'") or error('Unable to fetch user info', __FILE__, __LINE__, $db->error());
  $usercodel = $db->fetch_assoc($usercodel);    

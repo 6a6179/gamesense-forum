@@ -40,8 +40,9 @@ if (isset($_POST['form_sent']) && $action == 'in')
 
 	if (!empty($cur_user['password']))
 	{
-		$authorized = forum_password_verify($form_password, $cur_user['password'], $cur_user['salt']);
-		if ($authorized && (!empty($cur_user['salt']) || forum_password_needs_rehash($cur_user['password'])))
+		$legacy_salt = isset($cur_user['salt']) ? $cur_user['salt'] : null;
+		$authorized = forum_password_verify($form_password, $cur_user['password'], $legacy_salt);
+		if ($authorized && (($legacy_salt !== null && $legacy_salt !== '') || forum_password_needs_rehash($cur_user['password'])))
 		{
 			$needs_password_upgrade = true;
 			$updated_password_hash = forum_password_hash($form_password);
@@ -74,9 +75,11 @@ if ($code!=$_POST['2fa']){
 	{
 		if ($needs_password_upgrade)
 		{
-			$db->query('UPDATE '.$db->prefix.'users SET password=\''.$db->escape($updated_password_hash).'\', salt=NULL WHERE id='.$cur_user['id']) or error('Unable to update user password', __FILE__, __LINE__, $db->error());
+			$salt_sql = array_key_exists('salt', $cur_user) ? ', salt=NULL' : '';
+			$db->query('UPDATE '.$db->prefix.'users SET password=\''.$db->escape($updated_password_hash).'\''.$salt_sql.' WHERE id='.$cur_user['id']) or error('Unable to update user password', __FILE__, __LINE__, $db->error());
 			$cur_user['password'] = $updated_password_hash;
-			$cur_user['salt'] = null;
+			if (array_key_exists('salt', $cur_user))
+				$cur_user['salt'] = null;
 		}
 
 		// Update the status if this is the first time the user logged in
@@ -125,7 +128,7 @@ else if ($action == 'out')
 	if (isset($pun_user['logged']))
 		$db->query('UPDATE '.$db->prefix.'users SET last_visit='.$pun_user['logged'].' WHERE id='.$pun_user['id']) or error('Unable to update user visit data', __FILE__, __LINE__, $db->error());
 
-	pun_setcookie(1, pun_hash(uniqid(rand(), true)), time() + 31536000);
+	pun_setcookie(PUN_GUEST_USER_ID, pun_hash(uniqid(rand(), true)), time() + 31536000);
 
 	redirect('index.php', $lang_login['Logout redirect']);
 }

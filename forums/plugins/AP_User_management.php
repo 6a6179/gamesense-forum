@@ -76,7 +76,7 @@ if (isset($_POST['prune']))
 	$prune = ($_POST['prune_by'] == '1') ? 'registered' : 'last_visit';
 	$user_time = time() - ($days * 86400);
 	
-	$result = $db->query('DELETE FROM '.$db->prefix.'users WHERE id>2 AND num_posts<'.$posts.' AND '.$prune.'<'.$user_time.$admod_delete.$verified, true) or error('Unable to delete users', __FILE__, __LINE__, $db->error());
+		$result = $db->query('DELETE FROM '.$db->prefix.'users WHERE id>'.PUN_ROOT_ADMIN_USER_ID.' AND num_posts<'.$posts.' AND '.$prune.'<'.$user_time.$admod_delete.$verified, true) or error('Unable to delete users', __FILE__, __LINE__, $db->error());
 	$users_pruned = $db->affected_rows();
 	message(sprintf($lang_user_management['Pruning complete message'], $users_pruned));
 }

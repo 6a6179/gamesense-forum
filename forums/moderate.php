@@ -337,7 +337,7 @@ if (isset($_GET['tid']))
 		$post_count++;
 
 		// If the poster is a registered user
-		if ($cur_post['poster_id'] > 1)
+		if ($cur_post['poster_id'] > PUN_GUEST_USER_ID)
 		{
 			if ($pun_user['g_view_users'] == '1')
 				$poster = '<a href="profile.php?id='.$cur_post['poster_id'].'">'.pun_htmlspecialchars($cur_post['poster']).'</a>';

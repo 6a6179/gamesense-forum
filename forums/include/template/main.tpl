@@ -35,7 +35,7 @@
 <div id="brdfooter" class="block">
 	<div class="box">
 		<div class="inbox">
-			<p>GameSense 2022</p>
+			<p>GameSense <pun_current_year></p>
 			<ul>
 				<li><span><a href="tos.php">Terms and Conditions / Privacy policy</a></span></li>
 			</ul>

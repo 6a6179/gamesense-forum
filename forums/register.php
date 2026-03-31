@@ -63,9 +63,14 @@ else if ($pun_config['o_rules'] == '1' && !isset($_GET['agree']) && !isset($_POS
 // Start with a clean slate
 $errors = array();
 
+$result = $db->query('SELECT 1 FROM '.$db->prefix.'users WHERE group_id='.PUN_ADMIN.' LIMIT 1') or error('Unable to fetch admin info', __FILE__, __LINE__, $db->error());
+$has_admin_account = (bool) $db->num_rows($result);
+$requires_invite = $has_admin_account;
+
 if (isset($_POST['form_sent']))
 {
 	flux_hook('register_before_validation');
+	check_csrf($_POST['csrf_token']);
 
 	// Check that someone from this IP didn't register a user within the last hour (DoS prevention)
 	$result = $db->query('SELECT 1 FROM '.$db->prefix.'users WHERE registration_ip=\''.$db->escape(get_remote_address()).'\' AND registered>'.(time() - 3600)) or error('Unable to fetch user info', __FILE__, __LINE__, $db->error());
@@ -76,7 +81,7 @@ if (isset($_POST['form_sent']))
 
 	$username = pun_trim($_POST['req_user']);
 	$email1 = strtolower(pun_trim($_POST['req_email1']));
-    $inv1 = strtolower(trim($_POST['req_inv1']));
+	$inv1 = isset($_POST['req_inv1']) ? strtolower(trim($_POST['req_inv1'])) : '';
     
 	if ($pun_config['o_regs_verify'] == '1')
 	{
@@ -102,11 +107,17 @@ if (isset($_POST['form_sent']))
 	// Validate email
 	require PUN_ROOT.'include/email.php';
 
-    $result = $db->query('SELECT code FROM '.$db->prefix.'codes WHERE used=0 AND code=\''.$db->escape($inv1).'\'') or error('Unable to fetch invite', __FILE__, __LINE__, $db->error());
-	if (!$db->num_rows($result))
+	$invite = null;
+	if ($requires_invite)
 	{
-		$errors[] = "Registration requires an invite.";
-		message("Registration requires an invite");
+		$result = $db->query('SELECT code, `by`, beta FROM '.$db->prefix.'codes WHERE used=0 AND code=\''.$db->escape($inv1).'\'') or error('Unable to fetch invite', __FILE__, __LINE__, $db->error());
+		if (!$db->num_rows($result))
+		{
+			$errors[] = 'Registration requires an invite.';
+			message('Registration requires an invite');
+		}
+		else
+			$invite = $db->fetch_assoc($result);
 	}
 
 	if (!is_valid_email($email1))
@@ -167,26 +178,25 @@ if (isset($_POST['form_sent']))
 		$intial_group_id = ($pun_config['o_regs_verify'] == '0') ? $pun_config['o_default_user_group'] : PUN_UNVERIFIED;
 		$password_hash = forum_password_hash($password1);
 
-        $result = $db->query('SELECT * FROM '.$db->prefix.'codes WHERE used=0 AND code=\''.$db->escape($inv1).'\'') or error('Unable to fetch user code', __FILE__, __LINE__, $db->error());
-    	if ($db->num_rows($result))
-    	{
-			$invby = $db->fetch_assoc($result);
-			$invby = $invby['by'];
-			if($invby['beta'] == 1)
+		if (!$has_admin_account)
+			$intial_group_id = PUN_ADMIN;
+
+		if (!empty($invite['beta']))
 			$intial_group_id = 4;
-    	}
-	    else {
-		    $errors[] = "Registration requires an invite";
-	    }
+
+		$invby = !empty($invite['by']) ? (int) $invite['by'] : null;
 
 		// Add the user
 		$db->query('INSERT INTO '.$db->prefix.'users (username, group_id, password, email, email_setting, timezone, dst, language, style, registered, registration_ip, last_visit) VALUES(\''.$db->escape($username).'\', '.$intial_group_id.', \''.$password_hash.'\', \''.$db->escape($email1).'\', '.$email_setting.', '.$timezone.' , '.$dst.', \''.$db->escape($language).'\', \''.$pun_config['o_default_style'].'\', '.$now.', \''.$db->escape(get_remote_address()).'\', '.$now.')') or error('Unable to create user', __FILE__, __LINE__, $db->error());
 		$new_uid = $db->insert_id();
 
-        $db->query("UPDATE `gs_users` SET `by` = '$invby' WHERE `id` = '$new_uid'") or error('Unable to update user1', __FILE__, __LINE__, $db->error());
-		$db->query("UPDATE `gs_codes` SET `user` = '$new_uid' WHERE `code` = '$inv1'") or error('Unable to update user2', __FILE__, __LINE__, $db->error());
-        $db->query("UPDATE `gs_codes` SET `used` = '1' WHERE `code` = '$inv1'") or error('Unable to update code3', __FILE__, __LINE__, $db->error());
-		$db->query("UPDATE `gs_codes` SET `usedat` = NOW() WHERE `code` = '$inv1'") or error('Unable to update code4', __FILE__, __LINE__, $db->error());
+		$db->query('UPDATE '.$db->prefix.'users SET `by`='.(($invby !== null) ? $invby : 'NULL').' WHERE id='.$new_uid) or error('Unable to update user1', __FILE__, __LINE__, $db->error());
+		if ($requires_invite)
+		{
+			$db->query('UPDATE '.$db->prefix.'codes SET `user`='.$new_uid.' WHERE code=\''.$db->escape($inv1).'\'') or error('Unable to update user2', __FILE__, __LINE__, $db->error());
+			$db->query('UPDATE '.$db->prefix.'codes SET `used`=1 WHERE code=\''.$db->escape($inv1).'\'') or error('Unable to update code3', __FILE__, __LINE__, $db->error());
+			$db->query('UPDATE '.$db->prefix.'codes SET `usedat`=NOW() WHERE code=\''.$db->escape($inv1).'\'') or error('Unable to update code4', __FILE__, __LINE__, $db->error());
+		}
 
 		if ($pun_config['o_regs_verify'] == '0')
 		{
@@ -195,6 +205,14 @@ if (isset($_POST['form_sent']))
 				require PUN_ROOT.'include/cache.php';
 
 			generate_users_info_cache();
+		}
+
+		if ($intial_group_id == PUN_ADMIN)
+		{
+			if (!defined('FORUM_CACHE_FUNCTIONS_LOADED'))
+				require PUN_ROOT.'include/cache.php';
+
+			generate_admins_cache();
 		}
 
 		// If the mailing list isn't empty, we may need to send out some alerts
@@ -239,7 +257,7 @@ if (isset($_POST['form_sent']))
 			}
 
 			// Should we alert people on the admin mailing list that a new user has registered?
-			if ($pun_config['o_regs_report'] == '1')
+			if ($pun_config['o_regs_report'] == '1' && $has_admin_account)
 			{
 				// Load the "new user" template
 				$mail_tpl = trim(file_get_contents(PUN_ROOT.'lang/'.$pun_user['language'].'/mail_templates/new_user.tpl'));
@@ -330,12 +348,13 @@ if (!empty($errors))
 <div id="regform" class="blockform">
 	<h2><span><?php echo $lang_register['Register'] ?></span></h2>
 	<div class="box">
-		<form id="register" method="post" action="register.php?action=register" onsubmit="this.register.disabled=true;if(process_form(this)){return true;}else{this.register.disabled=false;return false;}">
+			<form id="register" method="post" action="register.php?action=register" onsubmit="this.register.disabled=true;if(process_form(this)){return true;}else{this.register.disabled=false;return false;}">
 			<div class="inform">
 				<fieldset>
 					<legend><?php echo $lang_register['Username legend'] ?></legend>
 					<div class="infldset">
 						<input type="hidden" name="form_sent" value="1" />
+						<input type="hidden" name="csrf_token" value="<?php echo pun_csrf_token(); ?>" />
 						<label class="required"><strong><?php echo $lang_common['Username'] ?> <span><?php echo $lang_common['Required'] ?></span></strong><br /><input type="text" name="req_user" value="<?php if (isset($_POST['req_user'])) echo pun_htmlspecialchars($_POST['req_user']); ?>" size="25" minlength="3" maxlength="25" /><br /></label>
 					</div>
 				</fieldset>
@@ -362,16 +381,17 @@ if (!empty($errors))
 <?php endif; ?>					</div>
 				</fieldset>
 			</div>
-			<div class="inform">
-				<fieldset>
-					<legend>You must be invited to join this forum</legend>
-					<div class="infldset">
-        
-				<label class="required"><strong>Invitation code <span><?php echo $lang_common['Required'] ?></span></strong><br />
-						<input type="text" name="req_inv1" value="<?php if (isset($_POST['req_inv1'])) echo pun_htmlspecialchars($_POST['req_inv1']); ?>" size="50" maxlength="80" /><br /></label>
+<?php if ($requires_invite): ?>			<div class="inform">
+					<fieldset>
+						<legend>You must be invited to join this forum</legend>
+						<div class="infldset">
+	        
+					<label class="required"><strong>Invitation code <span><?php echo $lang_common['Required'] ?></span></strong><br />
+							<input type="text" name="req_inv1" value="<?php if (isset($_POST['req_inv1'])) echo pun_htmlspecialchars($_POST['req_inv1']); ?>" size="50" maxlength="80" /><br /></label>
+					</div>
+					</fieldset>
 				</div>
-				</fieldset>
-			</div>
+<?php endif; ?>
 			<div class="inform">
 				<fieldset>
 					<legend><?php echo $lang_prof_reg['Localisation legend'] ?></legend>

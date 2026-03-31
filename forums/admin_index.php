@@ -86,14 +86,10 @@ generate_admin_menu('index');
 		<h2 class="block2"><span><?php echo $lang_admin_index['About head'] ?></span></h2>
 		<div id="adstats" class="box">
 			<div class="inbox">
-				<dl>
-					<dt><?php echo $lang_admin_index['FluxBB version label'] ?></dt>
-					<dd>
-						<?php printf($lang_admin_index['FluxBB version data']."\n", $pun_config['o_cur_version'], '<a href="admin_index.php?action=check_upgrade">'.$lang_admin_index['Check for upgrade'].'</a>') ?>
-					</dd>
-					<dt><?php echo $lang_admin_index['Server statistics label'] ?></dt>
-					<dd>
-						<a href="admin_statistics.php"><?php echo $lang_admin_index['View server statistics'] ?></a>
+					<dl>
+						<dt><?php echo $lang_admin_index['Server statistics label'] ?></dt>
+						<dd>
+							<a href="admin_statistics.php"><?php echo $lang_admin_index['View server statistics'] ?></a>
 					</dd>
 					<dt><?php echo $lang_admin_index['Support label'] ?></dt>
 					<dd>

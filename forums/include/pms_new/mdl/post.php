@@ -84,7 +84,7 @@ if (!isset($_POST['req_addressee']) && (isset($_GET['uid']) || $sid))
 		$uid = $sid;
 	else
 		$uid = intval($_GET['uid']);
-	if ($uid < 2)
+	if ($uid <= PUN_GUEST_USER_ID)
 		message($lang_common['Bad request'], false, '404 Not Found');
 
 	$result = $db->query('SELECT u.*, g.* FROM '.$db->prefix.'users AS u INNER JOIN '.$db->prefix.'groups AS g ON u.group_id=g.g_id WHERE id='.$uid) or error('Unable to fetch user information', __FILE__, __LINE__, $db->error());

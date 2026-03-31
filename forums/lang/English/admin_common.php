@@ -16,6 +16,7 @@ $lang_admin_common = array(
 'Permissions'			=>	'Permissions',
 'Censoring'				=>	'Censoring',
 'Bans'					=>	'Bans',
+'Unban'				=>	'Unban',
 'Prune'					=>	'Prune',
 'Maintenance'			=>	'Maintenance',
 'Invite Wave'			=>	'Invite Wave',

@@ -1,22 +1,17 @@
 <?php
-//for own use please change this otherwise you could
-//be faced by exploit
-// this file is used to configure the database connection
-$db_type = 'mysqli_innodb';
-$db_host = 'localhost';
-$db_name = 'database';
-$db_username = 'username';
-$db_password = 'password';
-$db_prefix = 'gs_';
+$db_type = getenv('FORUM_DB_TYPE') ?: 'mysqli_innodb';
+$db_host = getenv('FORUM_DB_HOST') ?: 'localhost';
+$db_name = getenv('FORUM_DB_NAME') ?: 'gamesense_forum';
+$db_username = getenv('FORUM_DB_USER') ?: 'gamesense';
+$db_password = getenv('FORUM_DB_PASSWORD') ?: 'CHANGE_PASSWORD';
+$db_prefix = getenv('FORUM_DB_PREFIX') ?: 'gs_';
 $p_connect = false;
 
-// for own use/forum please change this otherwise you could
-// be faced by exploits
-$cookie_name = 'pun_cookie_2a0439';
-$cookie_domain = '';
-$cookie_path = '/';
-$cookie_secure = 0;
-$cookie_seed = '29f615ba38d74704';
+$cookie_name = getenv('FORUM_COOKIE_NAME') ?: 'pun_cookie_64bitspw';
+$cookie_domain = getenv('FORUM_COOKIE_DOMAIN') ?: '';
+$cookie_path = getenv('FORUM_COOKIE_PATH') ?: '/';
+$cookie_secure = (getenv('FORUM_COOKIE_SECURE') ?: '0') === '1' ? 1 : 0;
+$cookie_seed = getenv('FORUM_COOKIE_SEED') ?: 'CHANGE_PASSWORD_256BITPW';
 
 // Optional: only these proxy IPs/CIDRs may supply forwarded client IP headers.
 // define('FORUM_TRUSTED_PROXIES', array('203.0.113.10', '198.51.100.0/24'));

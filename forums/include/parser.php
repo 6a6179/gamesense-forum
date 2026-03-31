@@ -95,7 +95,10 @@ function preparse_bbcode($text, &$errors, $is_signature = false)
 		list($inside, $text) = extract_blocks($text, '[code]', '[/code]');
 
 	// Tidy up lists
-	$temp = preg_replace_callback($re_list, create_function('$matches', 'return preparse_list_tag($matches[2], $matches[1]);'), $text);
+	$temp = preg_replace_callback($re_list, function ($matches)
+	{
+		return preparse_list_tag($matches[2], $matches[1]);
+	}, $text);
 
 	// If the regex failed
 	if (is_null($temp))
@@ -640,7 +643,10 @@ function preparse_list_tag($content, $type = '*')
 
 	if (strpos($content,'[list') !== false)
 	{
-		$content = preg_replace_callback($re_list, create_function('$matches', 'return preparse_list_tag($matches[2], $matches[1]);'), $content);
+		$content = preg_replace_callback($re_list, function ($matches)
+		{
+			return preparse_list_tag($matches[2], $matches[1]);
+		}, $content);
 	}
 
 	$items = explode('[*]', str_replace('\"', '"', $content));
@@ -734,7 +740,10 @@ function handle_list_tag($content, $type = '*')
 
 	if (strpos($content,'[list') !== false)
 	{
-		$content = preg_replace_callback($re_list, create_function('$matches', 'return handle_list_tag($matches[2], $matches[1]);'), $content);
+		$content = preg_replace_callback($re_list, function ($matches)
+		{
+			return handle_list_tag($matches[2], $matches[1]);
+		}, $content);
 	}
 
 	$content = preg_replace('#\s*\[\*\](.*?)\[/\*\]\s*#s', '<li><p>$1</p></li>', pun_trim($content));
@@ -761,7 +770,10 @@ function do_bbcode($text, $is_signature = false)
 	if (strpos($text, '[quote') !== false)
 	{
 		$text = preg_replace('%\[quote\]\s*%', '</p><div class="quotebox"><blockquote><div><p>', $text);
-		$text = preg_replace_callback('%\[quote=(&quot;|&\#039;|"|\'|)([^\r\n]*?)\\1\]%s', create_function('$matches', 'global $lang_common; return "</p><div class=\"quotebox\"><cite>".str_replace(array(\'[\', \'\\"\'), array(\'&#91;\', \'"\'), $matches[2])." ".$lang_common[\'wrote\']."</cite><blockquote><div><p>";'), $text);
+		$text = preg_replace_callback('%\[quote=(&quot;|&\#039;|"|\'|)([^\r\n]*?)\\1\]%s', function ($matches) use ($lang_common)
+		{
+			return '</p><div class="quotebox"><cite>'.str_replace(array('[', '\"'), array('&#91;', '"'), $matches[2]).' '.$lang_common['wrote'].'</cite><blockquote><div><p>';
+		}, $text);
 		$text = preg_replace('%\s*\[\/quote\]%S', '</p></div></blockquote></div><p>', $text);
 	}
 	if (!$is_signature)
@@ -837,7 +849,7 @@ function do_bbcode($text, $is_signature = false)
 	$count = count($pattern_callback);
 	for($i = 0 ; $i < $count ; $i++)
 	{
-		$text = preg_replace_callback($pattern_callback[$i], create_function('$matches', 'return '.$replace_callback[$i].';'), $text);
+		$text = preg_replace_callback($pattern_callback[$i], forum_build_preg_callback($replace_callback[$i]), $text);
 	}
 	return $text;
 }

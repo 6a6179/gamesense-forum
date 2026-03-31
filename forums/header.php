@@ -101,6 +101,8 @@ $p = isset($p) ? $p : null;
 if (!defined('PUN_ALLOW_INDEX'))
 	echo '<meta name="ROBOTS" content="NOINDEX, FOLLOW" />'."\n";
 
+echo '<meta name="csrf-token" content="'.pun_csrf_token().'" />'."\n";
+
 ?>
 <title><?php echo generate_page_title($page_title, $p) ?></title>
 <link rel="stylesheet" type="text/css" href="style/<?php echo $pun_user['style'].'.css' ?>" />
@@ -197,6 +199,11 @@ $tpl_main = str_replace('<pun_page>', htmlspecialchars(basename($_SERVER['SCRIPT
 // START SUBST - <pun_title>
 $tpl_main = str_replace('<pun_title>', '<h1><a href="index.php">'.pun_htmlspecialchars($pun_config['o_board_title']).'</a></h1>', $tpl_main);
 // END SUBST - <pun_title>
+
+
+// START SUBST - <pun_current_year>
+$tpl_main = str_replace('<pun_current_year>', date('Y'), $tpl_main);
+// END SUBST - <pun_current_year>
 
 
 // START SUBST - <pun_desc>

@@ -106,10 +106,10 @@ $(function() {
 	}
 
 	pay_method.on('change', function(event) {
-		let meth = $(this).val();
-		if (meth === 'Card') {
+		let meth = $(this).val().toLowerCase();
+		if (meth === 'card') {
 			billing_info_submit.value = 'Continue';
-		} else if (meth === 'WeChat') {
+		} else if (meth === 'wechat') {
 			billing_info_submit.value = 'Generate QR code';
 		}
 		return true;

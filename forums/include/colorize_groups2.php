@@ -30,7 +30,7 @@ function colorize_group2($name, $gid, $user_id = 0, $htmlencode = true)
 	
 	$name = '<span class="gid'.$gid.'">'.$name.'</span>';
 	
-	if ($pun_user['g_view_users'] == 1 && $user_id > 1)
+	if ($pun_user['g_view_users'] == 1 && $user_id > PUN_GUEST_USER_ID)
 		$name = '<a href="profile.php?id='.$user_id.'">'.$name.'</a>';
 
 	return $name;

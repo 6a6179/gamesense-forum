@@ -1,0 +1,46 @@
+services:
+  db:
+    image: mariadb:10.11
+    container_name: gamesense-forum-db
+    environment:
+      MARIADB_DATABASE: gamesense_forum
+      MARIADB_USER: gamesense
+      MARIADB_PASSWORD: gamesense_local_pw
+      MARIADB_ROOT_PASSWORD: root_local_pw
+    ports:
+      - "3307:3306"
+    volumes:
+      - gamesense_forum_db:/var/lib/mysql
+      - ./sql.sql:/docker-entrypoint-initdb.d/00-schema.sql:ro
+      - ./docker/mysql/init/01-local.sql:/docker-entrypoint-initdb.d/01-local.sql:ro
+    healthcheck:
+      test: ["CMD", "mariadb-admin", "ping", "-h", "127.0.0.1", "-ugamesense", "-pgamesense_local_pw"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  web:
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile
+    container_name: gamesense-forum-web
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      FORUM_DB_HOST: db
+      FORUM_DB_NAME: gamesense_forum
+      FORUM_DB_USER: gamesense
+      FORUM_DB_PASSWORD: gamesense_local_pw
+      FORUM_DB_PREFIX: gs_
+      FORUM_COOKIE_SECURE: "0"
+      FORUM_COOKIE_SEED: gamesense_local_cookie_seed_change_me
+    ports:
+      - "8080:8080"
+    user: "${LOCAL_UID:-501}:${LOCAL_GID:-20}"
+    volumes:
+      - ./:/app
+    working_dir: /app
+
+volumes:
+  gamesense_forum_db:

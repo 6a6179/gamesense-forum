@@ -111,7 +111,7 @@ $pmsn_arr_list = $pmsn_arr_new = $pmsn_arr_save = array();
 $sidamp = $sidvop = $siduser = '';
 
 $sid = isset($_GET['sid']) ? intval($_GET['sid']) : 0;
-if ($sid < 2)
+if ($sid <= PUN_GUEST_USER_ID)
 	$sid = 0;
 
 if ($sid)

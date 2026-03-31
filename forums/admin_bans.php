@@ -29,7 +29,7 @@ if (isset($_REQUEST['add_ban']) || isset($_GET['edit_ban']))
 		if (isset($_GET['add_ban']))
 		{
 			$user_id = intval($_GET['add_ban']);
-			if ($user_id < 2)
+				if ($user_id <= PUN_GUEST_USER_ID)
 				message($lang_common['Bad request'], false, '404 Not Found');
 
 			$result = $db->query('SELECT group_id, username, email FROM '.$db->prefix.'users WHERE id='.$user_id) or error('Unable to fetch user info', __FILE__, __LINE__, $db->error());
@@ -44,7 +44,7 @@ if (isset($_REQUEST['add_ban']) || isset($_GET['edit_ban']))
 
 			if ($ban_user != '')
 			{
-				$result = $db->query('SELECT id, group_id, username, email FROM '.$db->prefix.'users WHERE username=\''.$db->escape($ban_user).'\' AND id>1') or error('Unable to fetch user info', __FILE__, __LINE__, $db->error());
+					$result = $db->query('SELECT id, group_id, username, email FROM '.$db->prefix.'users WHERE username=\''.$db->escape($ban_user).'\' AND id>'.PUN_GUEST_USER_ID) or error('Unable to fetch user info', __FILE__, __LINE__, $db->error());
 				if ($db->num_rows($result))
 					list($user_id, $group_id, $ban_user, $ban_email) = $db->fetch_row($result);
 				else
@@ -196,7 +196,7 @@ else if (isset($_POST['add_edit_ban']))
 	// Make sure we're not banning an admin or moderator
 	if (!empty($ban_user))
 	{
-		$result = $db->query('SELECT group_id FROM '.$db->prefix.'users WHERE username=\''.$db->escape($ban_user).'\' AND id>1') or error('Unable to fetch user info', __FILE__, __LINE__, $db->error());
+			$result = $db->query('SELECT group_id FROM '.$db->prefix.'users WHERE username=\''.$db->escape($ban_user).'\' AND id>'.PUN_GUEST_USER_ID) or error('Unable to fetch user info', __FILE__, __LINE__, $db->error());
 		if ($db->num_rows($result))
 		{
 			$group_id = $db->result($result);
@@ -357,6 +357,7 @@ else if (isset($_GET['del_ban']))
 // Find bans
 else if (isset($_GET['find_ban']))
 {
+	$is_unban_view = (isset($_GET['view']) && $_GET['view'] === 'unban');
 	$form = isset($_GET['form']) ? $_GET['form'] : array();
 
 	// trim() all elements in $form
@@ -365,10 +366,14 @@ else if (isset($_GET['find_ban']))
 
 	$expire_after = isset($_GET['expire_after']) ? pun_trim($_GET['expire_after']) : '';
 	$expire_before = isset($_GET['expire_before']) ? pun_trim($_GET['expire_before']) : '';
-	$order_by = isset($_GET['order_by']) && in_array($_GET['order_by'], array('username', 'ip', 'email', 'expire')) ? 'b.'.$_GET['order_by'] : 'b.username';
+	$order_field = isset($_GET['order_by']) && in_array($_GET['order_by'], array('username', 'ip', 'email', 'expire')) ? $_GET['order_by'] : 'username';
+	$order_by = 'b.'.$order_field;
 	$direction = isset($_GET['direction']) && $_GET['direction'] == 'DESC' ? 'DESC' : 'ASC';
 
-	$query_str[] = 'order_by='.$order_by;
+	if ($is_unban_view)
+		$query_str[] = 'view=unban';
+
+	$query_str[] = 'order_by='.$order_field;
 	$query_str[] = 'direction='.$direction;
 
 	// Try to convert date/time to timestamps
@@ -415,12 +420,18 @@ else if (isset($_GET['find_ban']))
 
 	// Generate paging links
 	$paging_links = '<span class="pages-label">'.$lang_common['Pages'].' </span>'.paginate($num_pages, $p, 'admin_bans.php?find_ban=&amp;'.implode('&amp;', $query_str));
+	$results_title = $is_unban_view ? $lang_admin_common['Unban'] : $lang_admin_bans['Results head'];
 
-	$page_title = array(pun_htmlspecialchars($pun_config['o_board_title']), $lang_admin_common['Admin'], $lang_admin_common['Bans'], $lang_admin_bans['Results head']);
+	$page_title = array(pun_htmlspecialchars($pun_config['o_board_title']), $lang_admin_common['Admin'], $lang_admin_common['Bans'], $results_title);
+	if (!isset($page_head))
+		$page_head = array();
+	$page_head['admin_bans_results_layout'] = '<style type="text/css">#adminconsole .admin-results{overflow:hidden;min-height:1px;padding-left:14px;box-sizing:border-box} #bans1 table{table-layout:fixed} #bans1 thead th{background-color:#353534 !important;color:#bbb;text-align:left;font-weight:700;padding:8px 10px} #bans1 tbody td{background-color:#30302f !important;padding:8px 10px;vertical-align:middle} #bans1 tbody tr:hover td{background-color:#20201f !important} #bans1 .tcl{width:16%;text-align:left} #bans1 .tc2{width:16%;text-align:left} #bans1 .tc3{width:18%;text-align:left} #bans1 .tc4{width:11%;text-align:center} #bans1 .tc5{width:18%;text-align:left} #bans1 .tc6{width:12%;text-align:left} #bans1 .tcr{width:9%;text-align:left} @media only screen and (max-width:600px){#adminconsole .admin-results{overflow:visible;padding-left:0}}</style>';
 	define('PUN_ACTIVE_PAGE', 'admin');
-	require PUN_ROOT.'header.php';
+require PUN_ROOT.'header.php';
+generate_admin_menu($is_unban_view ? 'unban' : 'bans');
 
 ?>
+<div class="admin-results">
 <div class="linkst">
 	<div class="inbox crumbsplus">
 		<ul class="crumbs">
@@ -437,7 +448,7 @@ else if (isset($_GET['find_ban']))
 
 
 <div id="bans1" class="blocktable">
-	<h2><span><?php echo $lang_admin_bans['Results head'] ?></span></h2>
+	<h2><span><?php echo $results_title ?></span></h2>
 	<div class="box">
 		<div class="inbox">
 			<table>
@@ -455,7 +466,7 @@ else if (isset($_GET['find_ban']))
 			<tbody>
 <?php
 
-	$result = $db->query('SELECT b.id, b.username, b.ip, b.email, b.message, b.expire, b.ban_creator, u.username AS ban_creator_username FROM '.$db->prefix.'bans AS b LEFT JOIN '.$db->prefix.'users AS u ON b.ban_creator=u.id WHERE b.id>0'.(!empty($conditions) ? ' AND '.implode(' AND ', $conditions) : '').' ORDER BY '.$db->escape($order_by).' '.$db->escape($direction).' LIMIT '.$start_from.', 50') or error('Unable to fetch ban list', __FILE__, __LINE__, $db->error());
+	$result = $db->query('SELECT b.id, b.username, b.ip, b.email, b.message, b.expire, b.ban_creator, u.username AS ban_creator_username, u.group_id AS ban_creator_group_id FROM '.$db->prefix.'bans AS b LEFT JOIN '.$db->prefix.'users AS u ON b.ban_creator=u.id WHERE b.id>0'.(!empty($conditions) ? ' AND '.implode(' AND ', $conditions) : '').' ORDER BY '.$db->escape($order_by).' '.$db->escape($direction).' LIMIT '.$start_from.', 50') or error('Unable to fetch ban list', __FILE__, __LINE__, $db->error());
 	if ($db->num_rows($result))
 	{
 		while ($ban_data = $db->fetch_assoc($result))
@@ -471,7 +482,7 @@ else if (isset($_GET['find_ban']))
 					<td class="tc3"><?php echo ($ban_data['ip'] != '') ? pun_htmlspecialchars($ban_data['ip']) : '&#160;' ?></td>
 					<td class="tc4"><?php echo $expire ?></td>
 					<td class="tc5"><?php echo ($ban_data['message'] != '') ? pun_htmlspecialchars($ban_data['message']) : '&#160;' ?></td>
-					<td class="tc6"><?php echo ($ban_data['ban_creator_username'] != '') ? '<a href="profile.php?id='.$ban_data['ban_creator'].'">'.pun_htmlspecialchars($ban_data['ban_creator_username']).'</a>' : $lang_admin_bans['Unknown'] ?></td>
+					<td class="tc6"><?php echo ($ban_data['ban_creator_username'] != '' && $ban_data['ban_creator_group_id'] !== null) ? colorize_group($ban_data['ban_creator_username'], $ban_data['ban_creator_group_id'], $ban_data['ban_creator']) : $lang_admin_bans['Unknown'] ?></td>
 					<td class="tcr"><?php echo $actions ?></td>
 				</tr>
 <?php
@@ -500,6 +511,9 @@ else if (isset($_GET['find_ban']))
 		</ul>
 		<div class="clearer"></div>
 	</div>
+</div>
+</div>
+	<div class="clearer"></div>
 </div>
 <?php
 

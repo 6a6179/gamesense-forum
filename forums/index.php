@@ -17,6 +17,22 @@ if ($pun_user['g_read_board'] == '0')
 // Load the index.php language file
 require PUN_ROOT.'lang/'.$pun_user['language'].'/index.php';
 
+$shoutbox_content = '';
+$shoutbox_title = 'Chat';
+if (!$pun_user['is_guest'])
+{
+	$chatbox_lang_path = PUN_ROOT.'lang/'.$pun_user['language'].'/chatbox.php';
+	if (file_exists($chatbox_lang_path))
+	{
+		require $chatbox_lang_path;
+		if (!empty($lang_chatbox['Chatbox']))
+			$shoutbox_title = $lang_chatbox['Chatbox'];
+	}
+
+	require_once PUN_ROOT.'include/ajax_chat.php';
+	$shoutbox_content = forum_get_shoutbox_content();
+}
+
 // Get list of forums and topics with new posts since last visit
 if (!$pun_user['is_guest'])
 {
@@ -56,6 +72,12 @@ if ($pun_config['o_feed_type'] == '1')
 else if ($pun_config['o_feed_type'] == '2')
 	$page_head = array('feed' => '<link rel="alternate" type="application/atom+xml" href="extern.php?action=feed&amp;type=atom" title="'.$lang_common['Atom active topics feed'].'" />');
 
+if ($shoutbox_content !== '')
+{
+	$shoutbox_css_version = @filemtime(PUN_ROOT.'chat/css/shoutbox.css');
+	$page_head['ajax_chat_shoutbox_css'] = '<link rel="stylesheet" type="text/css" href="chat/css/shoutbox.css'.($shoutbox_css_version ? '?v='.$shoutbox_css_version : '').'" />';
+}
+
 $forum_actions = array();
 
 // Display a "mark all as read" link
@@ -66,6 +88,22 @@ $page_title = array(pun_htmlspecialchars($pun_config['o_board_title']));
 define('PUN_ALLOW_INDEX', 1);
 define('PUN_ACTIVE_PAGE', 'index');
 require PUN_ROOT.'header.php';
+
+if ($shoutbox_content !== '')
+{
+
+?>
+<div id="idxshoutbox" class="blocktable">
+	<h2><span><?php echo pun_htmlspecialchars($shoutbox_title) ?></span></h2>
+	<div class="box">
+		<div class="inbox">
+			<?php echo $shoutbox_content ?>
+		</div>
+	</div>
+</div>
+<?php
+
+}
 
 // Print the categories and forums
 $result = $db->query('SELECT c.id AS cid, c.cat_name, f.id AS fid, f.forum_name, f.forum_desc, f.redirect_url, f.moderators, f.num_topics, f.num_posts, f.last_post, f.last_post_id, f.last_poster, f.last_topic FROM '.$db->prefix.'categories AS c INNER JOIN '.$db->prefix.'forums AS f ON c.id=f.cat_id LEFT JOIN '.$db->prefix.'forum_perms AS fp ON (fp.forum_id=f.id AND fp.group_id='.$pun_user['g_id'].') WHERE fp.read_forum IS NULL OR fp.read_forum=1 ORDER BY c.disp_position, c.id, f.disp_position', true) or error('Unable to fetch category/forum list', __FILE__, __LINE__, $db->error());
@@ -246,7 +284,7 @@ if ($pun_config['o_users_online'] == '1')
 
 	while ($pun_user_online = $db->fetch_assoc($result))
 	{
-		if ($pun_user_online['user_id'] > 1)
+		if ($pun_user_online['user_id'] > PUN_GUEST_USER_ID)
 		{
 			if ($pun_user['g_view_users'] == '1')
 				$users[] = "\n\t\t\t\t".'<dd><a href="profile.php?id='.$pun_user_online['user_id'].'">'.pun_htmlspecialchars($pun_user_online['ident']).'</a>';

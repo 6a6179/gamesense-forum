@@ -1,2 +1,4 @@
 /.gitattributes
 /README.md
+.env
+forums/cache/cache_*.php

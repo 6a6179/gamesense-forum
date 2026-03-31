@@ -72,7 +72,7 @@ if (isset($_GET['action']) || isset($_GET['search_id']))
 	else if ($action == 'show_user_posts' || $action == 'show_user_topics' || $action == 'show_subscriptions')
 	{
 		$user_id = (isset($_GET['user_id'])) ? intval($_GET['user_id']) : $pun_user['id'];
-		if ($user_id < 2)
+		if ($user_id <= PUN_GUEST_USER_ID)
 			message($lang_common['Bad request'], false, '404 Not Found');
 
 		// Subscribed topics can only be viewed by admins, moderators and the users themselves
@@ -633,7 +633,7 @@ if (isset($_GET['action']) || isset($_GET['search_id']))
 				$message = parse_message($cur_search['message'], $cur_search['hide_smilies']);
 				$pposter = colorize_group($cur_search['pposter'], $cur_search['group_id']);
 
-				if ($cur_search['poster_id'] > 1)
+				if ($cur_search['poster_id'] > PUN_GUEST_USER_ID)
 				{
 					if ($pun_user['g_view_users'] == '1')
 						$pposter = '<strong><a href="profile.php?id='.$cur_search['poster_id'].'">'.$pposter.'</a></strong>';

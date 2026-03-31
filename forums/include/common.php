@@ -74,12 +74,12 @@ error_reporting(E_ALL ^ E_NOTICE);
 // Force POSIX locale (to prevent functions such as strtolower() from messing up UTF-8 strings)
 setlocale(LC_CTYPE, 'C');
 
-// Turn off magic_quotes_runtime
-if (get_magic_quotes_runtime())
+// Skip removed/deprecated magic quotes APIs on modern PHP versions.
+if (PHP_VERSION_ID < 70400 && function_exists('get_magic_quotes_runtime') && get_magic_quotes_runtime() && function_exists('set_magic_quotes_runtime'))
 	set_magic_quotes_runtime(0);
 
 // Strip slashes from GET/POST/COOKIE/REQUEST/FILES (if magic_quotes_gpc is enabled)
-if (!defined('FORUM_DISABLE_STRIPSLASHES') && get_magic_quotes_gpc())
+if (PHP_VERSION_ID < 70400 && !defined('FORUM_DISABLE_STRIPSLASHES') && function_exists('get_magic_quotes_gpc') && get_magic_quotes_gpc())
 {
 	function stripslashes_array($array)
 	{
@@ -113,6 +113,8 @@ define('PUN_ADMIN', 1);
 define('PUN_MOD', 2);
 define('PUN_GUEST', 3);
 define('PUN_MEMBER', 4);
+define('PUN_GUEST_USER_ID', 0);
+define('PUN_ROOT_ADMIN_USER_ID', 1);
 
 // Load DB abstraction layer and connect
 require PUN_ROOT.'include/dblayer/common_db.php';

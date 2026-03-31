@@ -226,7 +226,7 @@ if (empty($post_ids))
 
 // Retrieve the posts (and their respective poster/online status)
 // add "g.g_pm, u.messages_enable," - New PMS
-$result = $db->query('SELECT u.email, u.title, u.url, u.location, u.signature, u.email_setting, u.num_posts, u.registered, u.admin_note, u.messages_enable, p.id, p.poster AS username, p.poster_id, p.poster_ip, p.poster_email, p.message, p.hide_smilies, p.posted, p.edited, p.edited_by, p.likes, g.g_id, g.g_user_title, g.g_pm, g.g_promote_next_group, o.user_id AS is_online FROM '.$db->prefix.'posts AS p INNER JOIN '.$db->prefix.'users AS u ON u.id=p.poster_id INNER JOIN '.$db->prefix.'groups AS g ON g.g_id=u.group_id LEFT JOIN '.$db->prefix.'online AS o ON (o.user_id=u.id AND o.user_id!=1 AND o.idle=0) WHERE p.id IN ('.implode(',', $post_ids).') ORDER BY p.id', true) or error('Unable to fetch post info', __FILE__, __LINE__, $db->error());
+$result = $db->query('SELECT u.email, u.title, u.url, u.location, u.signature, u.email_setting, u.num_posts, u.registered, u.admin_note, u.messages_enable, p.id, p.poster AS username, p.poster_id, p.poster_ip, p.poster_email, p.message, p.hide_smilies, p.posted, p.edited, p.edited_by, p.likes, g.g_id, g.g_user_title, g.g_pm, g.g_promote_next_group, o.user_id AS is_online FROM '.$db->prefix.'posts AS p INNER JOIN '.$db->prefix.'users AS u ON u.id=p.poster_id INNER JOIN '.$db->prefix.'groups AS g ON g.g_id=u.group_id LEFT JOIN '.$db->prefix.'online AS o ON (o.user_id=u.id AND o.user_id!='.PUN_GUEST_USER_ID.' AND o.idle=0) WHERE p.id IN ('.implode(',', $post_ids).') ORDER BY p.id', true) or error('Unable to fetch post info', __FILE__, __LINE__, $db->error());
 while ($cur_post = $db->fetch_assoc($result))
 {
 	$post_count++;
@@ -238,7 +238,7 @@ while ($cur_post = $db->fetch_assoc($result))
 	$signature = '';
 
 	// If the poster is a registered user
-	if ($cur_post['poster_id'] > 1)
+		if ($cur_post['poster_id'] > PUN_GUEST_USER_ID)
 	{
 		if ($pun_user['g_view_users'] == '1')
 			$username = '<a href="profile.php?id='.$cur_post['poster_id'].'">'.pun_htmlspecialchars($cur_post['username']).'</a>';
@@ -376,13 +376,13 @@ while ($cur_post = $db->fetch_assoc($result))
 		$post_actions[] = $like_button;
 	}
 	if($pun_user['g_id'] != 4){
-    if ($cur_post['poster_id'] > 1 && $pun_user['g_view_users'] == '1')
+	    if ($cur_post['poster_id'] > PUN_GUEST_USER_ID && $pun_user['g_view_users'] == '1')
 		$username = str_replace('">'.pun_htmlspecialchars($cur_post['username']).'</a>', '">'.colorize_group($cur_post['username'], $cur_post['g_id']).'</a>', $username);
 	else
 		$username = colorize_group($cur_post['username'], $cur_post['g_id']);
 	}
 	if($pun_user['g_id'] == 4){
-	if ($cur_post['poster_id'] > 1 && $pun_user['g_view_users'] == '1')
+		if ($cur_post['poster_id'] > PUN_GUEST_USER_ID && $pun_user['g_view_users'] == '1')
 		$username = str_replace('">'.pun_htmlspecialchars($cur_post['username']).'</a>', '">'.colorize_group2($cur_post['username'], $cur_post['g_id']).'</a>', $username);
 	else
 		$username = colorize_group2($cur_post['username'], $cur_post['g_id']);
@@ -429,7 +429,7 @@ while ($cur_post = $db->fetch_assoc($result))
 		</div>
 		<div class="inbox">
 			<div class="postfoot clearb">
-				<div class="postfootleft"><?php if ($cur_post['poster_id'] > 1) echo '<p>'.$is_online.'</p>'; ?></div>
+				<div class="postfootleft"><?php if ($cur_post['poster_id'] > PUN_GUEST_USER_ID) echo '<p>'.$is_online.'</p>'; ?></div>
 <?php if (count($post_actions)) echo "\t\t\t\t".'<div class="postfootright">'."\n\t\t\t\t\t".'<ul>'."\n\t\t\t\t\t\t".implode("\n\t\t\t\t\t\t", $post_actions)."\n\t\t\t\t\t".'</ul>'."\n\t\t\t\t".'</div>'."\n" ?>
 			</div>
 		</div>

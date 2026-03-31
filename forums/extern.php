@@ -331,7 +331,7 @@ if ($action == 'feed')
 				'pubdate'		=>	$cur_post['posted']
 			);
 
-			if ($cur_post['poster_id'] > 1)
+			if ($cur_post['poster_id'] > PUN_GUEST_USER_ID)
 			{
 				if ($cur_post['email_setting'] == '0' && !$pun_user['is_guest'])
 					$item['author']['email'] = $cur_post['email'];
@@ -421,7 +421,7 @@ if ($action == 'feed')
 					'pubdate'		=>	$order_posted ? $cur_topic['posted'] : $cur_topic['last_post']
 				);
 
-				if ($cur_topic['poster_id'] > 1)
+				if ($cur_topic['poster_id'] > PUN_GUEST_USER_ID)
 				{
 					if ($cur_topic['email_setting'] == '0' && !$pun_user['is_guest'])
 						$item['author']['email'] = $cur_topic['email'];
@@ -481,7 +481,7 @@ else if ($action == 'online' || $action == 'online_full')
 
 	while ($pun_user_online = $db->fetch_assoc($result))
 	{
-		if ($pun_user_online['user_id'] > 1)
+			if ($pun_user_online['user_id'] > PUN_GUEST_USER_ID)
 		{
 			$users[] = ($pun_user['g_view_users'] == '1') ? '<a href="'.pun_htmlspecialchars(get_base_url(true)).'/profile.php?id='.$pun_user_online['user_id'].'">'.pun_htmlspecialchars($pun_user_online['ident']).'</a>' : pun_htmlspecialchars($pun_user_online['ident']);
 			++$num_users;
