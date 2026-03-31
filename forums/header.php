@@ -286,13 +286,12 @@ else
     $page_statusinfo[] = '<li><span>'.$lang_common['Logged in as'].' <strong>'.pun_htmlspecialchars($pun_user['username']).'</strong></span></li>';
 	//$page_statusinfo[] = '<li><span>'.$lang_common['Logged in as'].' <strong>'.colorize_group($pun_user['username'], $pun_user['g_id'], $pun_user['id']).'</strong></span></li>';
 if ($pun_user['group_id'] != 4){ 
-	$datehis1 = new DateTime($pun_user['csgo']);	
+	$datehis1 = forum_parse_datetime($pun_user['csgo']);	
 	$datehis2 = new DateTime('now');				
 
-if ($pun_user['csgo'] != null && $datehis1>$datehis2 ){ 
-	$date = new DateTime($pun_user['csgo']);						
-	$resultdate = format_time($date->getTimestamp(), false, null, null, false, true);
-	$page_statusinfo[] = '<li><span><strong>Premium (Counter-Strike: Global Offensive)</strong> until '.$resultdate.' [<a href="payment.php?game=csgo">extend subscription</a>]</span></li>';
+	if ($datehis1 !== null && $datehis1 > $datehis2 ){ 
+		$resultdate = format_time($datehis1->getTimestamp(), false, null, null, false, true);
+		$page_statusinfo[] = '<li><span><strong>Premium (Counter-Strike: Global Offensive)</strong> until '.$resultdate.' [<a href="payment.php?game=csgo">extend subscription</a>]</span></li>';
 	//$page_statusinfo[] = '<li><span><strong>Beta (Counter-Strike: Global Offensive)</strong> until '.$resultdate.' [<a href="payment.php?game=csgo">extend subscription</a>]</span></li>';
 	$page_statusinfo[] = '<li><span><a href="viewtopic.php?id=23">Frequently asked questions</a> • <a href="viewtopic.php?id=36">Common issues</a> • <a href="discord.php">Support discord</a></span></li>';
 

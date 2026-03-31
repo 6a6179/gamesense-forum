@@ -175,17 +175,9 @@ try
 	}
 
 	$subscription_is_active = false;
-	if (!empty($forum_user['csgo']))
-	{
-		try
-		{
-			$subscription_is_active = (new DateTime($forum_user['csgo']) > new DateTime('now'));
-		}
-		catch (Exception $e)
-		{
-			$subscription_is_active = false;
-		}
-	}
+	$subscription_expiry = forum_parse_datetime($forum_user['csgo']);
+	if ($subscription_expiry !== null)
+		$subscription_is_active = ($subscription_expiry > new DateTime('now'));
 
 	if ($forum_user['group_id'] == 4 || !$subscription_is_active)
 		discord_redirect('error');

@@ -113,6 +113,8 @@ WHERE conf_name = 'o_base_url';
 SQL
 ```
 
+If you have not configured TLS yet, use `http://forum.example.com/forums` temporarily instead. Do not set `https://...` in `o_base_url` until the certificate is actually installed and the vhost is serving HTTPS.
+
 If you do not plan to configure reCAPTCHA immediately, disable it:
 
 ```bash
@@ -234,7 +236,48 @@ If you terminate TLS on Nginx, set:
 fastcgi_param FORUM_COOKIE_SECURE 1;
 ```
 
-### 7. Complete first boot
+### 7. Configure TLS certificates
+
+For a public install, use Let's Encrypt. You need:
+
+- a real domain pointed at the server
+- port `80` reachable from the internet for the HTTP challenge
+
+#### Option A: Apache + Certbot
+
+```bash
+sudo apt install -y certbot python3-certbot-apache
+sudo certbot --apache -d forum.example.com
+```
+
+#### Option B: Nginx + Certbot
+
+```bash
+sudo apt install -y certbot python3-certbot-nginx
+sudo certbot --nginx -d forum.example.com
+```
+
+After Certbot succeeds:
+
+- keep `o_base_url` set to `https://forum.example.com/forums`
+- set `FORUM_COOKIE_SECURE` to `1` in your Apache or Nginx PHP env config
+- reload the web server
+
+Quick reload commands:
+
+```bash
+sudo systemctl reload apache2
+sudo systemctl reload nginx
+```
+
+If you are only testing on a LAN box or without a public domain, keep:
+
+- `o_base_url` on `http://...`
+- `FORUM_COOKIE_SECURE 0`
+
+until you install a real certificate.
+
+### 8. Complete first boot
 
 Open:
 

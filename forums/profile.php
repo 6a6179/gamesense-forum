@@ -955,8 +955,18 @@ if ($db->num_rows($myresult)){
 			if ($pun_user['g_id'] > PUN_ADMIN){
 		message($lang_common['No permission']);
 			} else {
+	$subscription_expire = isset($_POST['form']['sub']) ? pun_trim($_POST['form']['sub']) : '';
+	if ($subscription_expire !== '')
+	{
+		$subscription_expire_dt = forum_parse_datetime_exact($subscription_expire);
+		if ($subscription_expire_dt === null)
+			message('Invalid expire time. Use format Y-m-d H:i:s.');
+
+		$subscription_expire = $subscription_expire_dt->format('Y-m-d H:i:s');
+	}
+
 $form = array(
-				'csgo'		=> pun_trim($_POST['form']['sub']),
+				'csgo'		=> $subscription_expire,
 			);
 			
 			}
@@ -978,7 +988,13 @@ if (!$db->num_rows($result444444444))
 
 $user444444444 = $db->fetch_assoc($result444444444);
 
-if($_POST['form']['discord_reason'] != null && $_POST['form']['hwid_reason'] != null){
+$discord_reason_input = isset($_POST['form']['discord_reason']) ? pun_trim($_POST['form']['discord_reason']) : '';
+$hwid_reason_input = isset($_POST['form']['hwid_reason']) ? pun_trim($_POST['form']['hwid_reason']) : '';
+$token_action = isset($_POST['token']) ? $_POST['token'] : '';
+$fix_action = isset($_POST['fix']) ? $_POST['fix'] : '';
+$client_action = isset($_POST['client']) ? $_POST['client'] : '';
+
+if($discord_reason_input !== '' && $hwid_reason_input !== ''){
 	
 message($lang_common['Bad request']);
 	
@@ -986,12 +1002,12 @@ message($lang_common['Bad request']);
 }
 
 
-			elseif($_POST['form']['discord_reason'] != null){
+			elseif($discord_reason_input !== ''){
 				if($user444444444['discord_reason'] == null){
 					if($user444444444['discord_new'] != null){
 			$form = array(
 				
-				'discord_reason'		=> pun_trim($_POST['form']['discord_reason']),
+				'discord_reason'		=> $discord_reason_input,
 				
 				
 				
@@ -1007,13 +1023,13 @@ message($lang_common['Bad request']);
 					
 				}
 			
-			} elseif($_POST['form']['hwid_reason'] != null){
+			} elseif($hwid_reason_input !== ''){
 			
 			if($user444444444['hwid_reason'] == null){
 			if($user444444444['hwid_new'] != null){
 			$form = array(
 				
-				'hwid_reason'		=> pun_trim($_POST['form']['hwid_reason']),
+				'hwid_reason'		=> $hwid_reason_input,
 				
 				
 				
@@ -1033,7 +1049,7 @@ message($lang_common['Bad request']);
 			
 			
 			
-			 elseif($_POST['token'] == "Update" || $_POST['token'] == "Create"){
+			 elseif($token_action == "Update" || $token_action == "Create"){
 				
 				
 				  $version_loader = $db->query("SELECT * FROM `gs_versions` WHERE `id`='1'") or error('Unable to fetch info', __FILE__, __LINE__, $db->error());
@@ -1051,9 +1067,9 @@ message($lang_common['Bad request']);
 		$db->query("UPDATE `gs_users` SET `token` = '$randomString' WHERE `id`='$id'") or error('Unable to update info', __FILE__, __LINE__, $db->error());
 	
 	
-	if($_POST['token'] == "Update")
+	if($token_action == "Update")
 	redirect('profile.php?section='.$section.'&amp;id='.$id, "Token was updated");	
-	elseif($_POST['token'] == "Create")
+	elseif($token_action == "Create")
 	redirect('profile.php?section='.$section.'&amp;id='.$id, "Token was created");
 			
 			}
@@ -1065,7 +1081,7 @@ message($lang_common['Bad request']);
 			
 			
 			
-			 elseif($_POST['fix'] == "Download"){
+			 elseif($fix_action == "Download"){
 				
 				
 				  $version_loader = $db->query("SELECT * FROM `gs_versions` WHERE `id`='1'") or error('Unable to fetch info', __FILE__, __LINE__, $db->error());
@@ -1138,7 +1154,7 @@ exit();
 			
 			
 			
-			elseif($_POST['client'] == "Download"){
+			elseif($client_action == "Download"){
 				
 				
 				  $version_loader = $db->query("SELECT * FROM `gs_versions` WHERE `id`='1'") or error('Unable to fetch info', __FILE__, __LINE__, $db->error());
@@ -1528,9 +1544,8 @@ include "libmail.php";
 $iduser4 = $user['id'];
 $iduser2 = $user['email'];
 			$iduser = $user['username'];
-			$iduser1 = new DateTime($user['csgo']);
-
-			$iduser1 = format_time($iduser1->getTimestamp(), false, null, null, false, true);
+			$iduser1 = forum_parse_datetime($user['csgo']);
+			$iduser1 = ($iduser1 !== null) ? format_time($iduser1->getTimestamp(), false, null, null, false, true) : 'an unknown time';
 			 if(isset($_GET['email'])){
 				 
 				$m= new Mail("utf-8"); // начинаем
@@ -2428,11 +2443,11 @@ else
 					<?php } else { ?>
 				<?php 
 				
-				$datehis1 = new DateTime($user['csgo']);	
+				$datehis1 = forum_parse_datetime($user['csgo']);	
 $datehis2 = new DateTime('now');				
 
 				
-				if ($user['csgo'] != null && $datehis1>$datehis2 ){ ?>
+				if ($datehis1 !== null && $datehis1 > $datehis2){ ?>
 				<div class="inform">
 				
 				
@@ -2442,8 +2457,7 @@ $datehis2 = new DateTime('now');
 						<legend>Subscription expire time</legend>
 						<div class="infldset">
 						<?php
-$date = new DateTime($user['csgo']);						
-$resultdate = format_time($date->getTimestamp(), false, null, null, false, true);
+$resultdate = format_time($datehis1->getTimestamp(), false, null, null, false, true);
 						?>
 						
 						

@@ -1489,6 +1489,53 @@ function message($message, $no_back_link = false, $http_status = null)
 //
 // Format a time string according to $time_format and time zones
 //
+function forum_parse_datetime($value)
+{
+	if (!is_string($value))
+		return null;
+
+	$value = trim($value);
+	if ($value === '')
+		return null;
+
+	try
+	{
+		return new DateTime($value);
+	}
+	catch (Exception $e)
+	{
+		return null;
+	}
+}
+
+
+//
+// Parse a user-supplied datetime using an exact format
+//
+function forum_parse_datetime_exact($value, $format = 'Y-m-d H:i:s')
+{
+	if (!is_string($value))
+		return null;
+
+	$value = trim($value);
+	if ($value === '')
+		return null;
+
+	$date_time = DateTime::createFromFormat($format, $value);
+	if ($date_time === false)
+		return null;
+
+	$errors = DateTime::getLastErrors();
+	if (($errors['warning_count'] > 0) || ($errors['error_count'] > 0))
+		return null;
+
+	return ($date_time->format($format) === $value) ? $date_time : null;
+}
+
+
+//
+// Format a time string according to $time_format and time zones
+//
 function format_time($timestamp, $date_only = false, $date_format = null, $time_format = null, $time_only = false, $no_text = false, $user = null)
 {
 	global $lang_common, $pun_user, $forum_date_formats, $forum_time_formats;

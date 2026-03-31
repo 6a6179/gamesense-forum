@@ -36,19 +36,9 @@ if (isset($_POST['form_sent']))
 	$now = new DateTime('now');
 	$expires_at = clone $now;
 
-	if (!empty($pun_user['csgo']))
-	{
-		try
-		{
-			$current_expiry = new DateTime($pun_user['csgo']);
-			if ($current_expiry > $now)
-				$expires_at = $current_expiry;
-		}
-		catch (Exception $e)
-		{
-			$expires_at = clone $now;
-		}
-	}
+	$current_expiry = forum_parse_datetime($pun_user['csgo']);
+	if ($current_expiry !== null && $current_expiry > $now)
+		$expires_at = $current_expiry;
 
 	$expires_at->modify('+'.$days.' days');
 	$new_group_id = ((int) $pun_user['group_id'] === (int) $pun_config['o_default_user_group']) ? (int) $premium_group_id : (int) $pun_user['group_id'];
@@ -68,17 +58,11 @@ require PUN_ROOT.'header.php';
 
 $is_member = ((int) $pun_user['group_id'] === (int) $pun_config['o_default_user_group']);
 $expires_text = null;
-if (!empty($pun_user['csgo']))
-{
-	try
-	{
-		$expires_text = format_time((new DateTime($pun_user['csgo']))->getTimestamp(), false, null, null, false, true);
-	}
-	catch (Exception $e)
-	{
-		$expires_text = pun_htmlspecialchars($pun_user['csgo']);
-	}
-}
+$current_expiry = forum_parse_datetime($pun_user['csgo']);
+if ($current_expiry !== null)
+	$expires_text = format_time($current_expiry->getTimestamp(), false, null, null, false, true);
+else if (!empty($pun_user['csgo']))
+	$expires_text = pun_htmlspecialchars($pun_user['csgo']);
 ?>
 <div class="blockform">
 	<h2><span><?php echo $is_member ? 'Buy GameSense' : 'Extend GameSense'; ?></span></h2>
