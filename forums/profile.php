@@ -2040,12 +2040,36 @@ else
 						<p>Recovery code: <?php echo $user['ga'] ?></p>
 						<p><input type="submit" class="button" name="deactivate" id="deactivate" value="Disable 2FA" onclick="return confirm('Are you sure you want to do that?');"></p>
 					<?php } elseif($user['ga'] != null && $user['ga_enabled'] == 0) { ?>
-					<?php $url =  sprintf("otpauth://totp/%s?secret=%s&issuer=GameSense", $user['username'], $user['ga']);
-						$encoder = 'https://chart.googleapis.com/chart?chs=200x200&chld=M|0&cht=qr&chl=';
-						$qrImageURL = sprintf( "%s%s",$encoder, urlencode($url));
-						//echo $user['ga'];
-						echo '<div><img  style="float:right;padding-right:10px;padding-bottom:10px;" src="'.$qrImageURL.'" /></div>'; ?>
-							<p>Status: <strong>Confirmation</strong></p>
+					<?php
+						$otpauth_url = sprintf(
+							'otpauth://totp/%s?secret=%s&issuer=%s',
+							rawurlencode('GameSense:'.$user['username']),
+							rawurlencode($user['ga']),
+							rawurlencode('GameSense')
+						);
+					?>
+						<div id="ga-qr" style="float:right;padding-right:10px;padding-bottom:10px;"></div>
+						<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" type="text/javascript"></script>
+						<script type="text/javascript">
+						/* <![CDATA[ */
+						(function () {
+							var qrRoot = document.getElementById('ga-qr');
+							if (!qrRoot || typeof QRCode === 'undefined')
+								return;
+
+							new QRCode(qrRoot, {
+								text: <?php echo json_encode($otpauth_url); ?>,
+								width: 180,
+								height: 180,
+								colorDark: '#d4d4d3',
+								colorLight: '#272726',
+								correctLevel: QRCode.CorrectLevel.M
+							});
+						})();
+						/* ]]> */
+						</script>
+						<p>Status: <strong>Confirmation</strong></p>
+						<p>Setup key: <code><?php echo pun_htmlspecialchars($user['ga']); ?></code></p>
 						<label>Code<br /><input id="code" type="text" name="form[2fa]" size="20" maxlength="75" /> <input type="submit" name="update" value="<?php echo $lang_common['Submit'] ?>" /><br /></label>
 						<p>Refresh this page if code not valid.</p>
 						<?php	} else {

@@ -64,11 +64,11 @@ class GoogleAuthenticator {
     }
     
     public function getUrl($user, $hostname, $secret) {
-        $url =  sprintf("otpauth://totp/%s@%s?secret=%s", $user, $hostname, $secret);
-        $encoder = "https://www.google.com/chart?chs=200x200&chld=M|0&cht=qr&chl=";
-        $encoderURL = sprintf( "%sotpauth://totp/%s@%s&secret=%s",$encoder, $user, $hostname, $secret);
-        
-        return $encoderURL;
+        $label = rawurlencode($hostname.':'.$user);
+        $issuer = rawurlencode($hostname);
+        $secret = rawurlencode($secret);
+
+        return sprintf('otpauth://totp/%s?secret=%s&issuer=%s', $label, $secret, $issuer);
         
     }
     
